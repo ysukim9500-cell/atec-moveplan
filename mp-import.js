@@ -286,7 +286,7 @@
         pcode: txt(r[iPc]), pname: txt(r[iName])
       });
     });
-    return { sheet: f.sn, ymKeys: scan.keys, rows: rows, excl: excl, src: src };
+    return { sheet: f.sn, ymKeys: scan.keys, ymDist: scan.dist, rows: rows, excl: excl, src: src };
   }
 
   function parseSgaBook(wb) {
@@ -317,7 +317,7 @@
         dept: txt(r[iDept]), emp: txt(r[iEmp]), wdate: iW >= 0 ? isoDate(r[iW]) : null
       });
     });
-    return { sheet: f.sn, ymKeys: scan.keys, rows: rows, src: src };
+    return { sheet: f.sn, ymKeys: scan.keys, ymDist: scan.dist, rows: rows, src: src };
   }
 
   global.MpImport = {

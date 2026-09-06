@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ATEC 이동계획</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20260907e">
+<link rel="stylesheet" href="styles.css?v=20260908a">
 </head>
 <body>
 
@@ -23,7 +23,7 @@
       <button data-p="week">주차별 변동 관리</button>
       <button data-p="aux" disabled>이동계획 부속 시트</button>
       <div class="grp">실적 검토</div>
-      <button data-p="erp" disabled>확정 판관비/매출현황</button>
+      <button data-p="erp">확정 판관비/매출현황</button>
       <div class="grp">데이터</div>
       <button data-p="admin" id="navAdmin">설정 · 데이터 관리</button>
       <button data-p="check">연결 · 권한 점검</button>
@@ -136,6 +136,80 @@
         </div>
       </section>
 
+      <!-- ===== 확정 판관비 / 매출현황 ===== -->
+      <section id="p-erp" class="hide">
+        <div class="gbar">
+          <div class="gline"><span class="glabel">월</span><div class="tabs" id="erpMonth"></div>
+            <div class="spacer"></div><span class="chip" id="erpState">—</span></div>
+          <div class="gline"><span class="glabel">단위</span><div class="tabs" id="erpUnit"></div>
+            <span class="glabel" style="margin-left:16px">명세</span><div class="tabs" id="erpKind"></div>
+            <div class="spacer"></div>
+            <span class="chip" id="erpSave">—</span>
+            <button class="btn hide" id="btnErpUp">ERP 확정본 올리기</button></div>
+        </div>
+
+        <div class="card hide" id="erpUpCard"><div class="hd"><div><h3>ERP 확정본 등록</h3>
+          <div class="desc">매출현황·판관비 엑셀은 <b>그 달 마지막 OL 이 끝난 뒤 다음 달 초</b>에 나옵니다.
+            파일은 이 브라우저에서 바로 읽습니다 — 어디에도 올라가지 않습니다.
+            <b>한 번에 한 달치</b>만 받습니다.</div></div></div>
+          <div class="bd">
+            <div class="uprow">
+              <label class="upf"><span>매출현황 <b>.xlsx</b></span><input type="file" id="fErpRev" accept=".xlsx,.xlsm,.xls"></label>
+              <label class="upf"><span>판관비 <b>.xlsx</b></span><input type="file" id="fErpSga" accept=".xlsx,.xlsm,.xls"></label>
+              <button class="btn" id="btnErpAnalyze">분석</button>
+              <button class="btn red" id="btnErpSave" disabled>확정본 등록</button>
+            </div>
+            <div class="uplog" id="erpUpLog"></div>
+          </div></div>
+
+        <div id="erpClose" class="hide"></div>
+        <div id="erpEmpty" class="note info hide"></div>
+
+        <div id="erpBody" class="hide">
+          <div class="sec-title"><h2>최종 OL 대비 대사</h2><span id="erpSub"></span></div>
+          <div class="grid g4" id="erpKpi"></div>
+
+          <div class="card" style="margin-top:14px"><div class="hd"><div><h3>사업부 손익 대사</h3>
+            <div class="desc">최종 OL 은 예측이고 ERP 는 확정입니다. 차이가 5% 를 넘으면 표시됩니다 —
+              <b>사유를 남겨야</b> 다음 달 계획이 같은 실수를 반복하지 않습니다.</div></div></div>
+            <div class="bd" style="padding:0">
+              <div class="tbl-wrap" style="max-height:none"><table class="t" id="tblErpRecon"></table></div>
+            </div></div>
+
+          <div id="erpUnmapped" class="hide" style="margin-top:13px"></div>
+
+          <div class="sec-title"><h2>팀별 대사</h2><span>최종 OL vs 확정</span></div>
+          <div class="card"><div class="bd" style="padding:0">
+            <div class="tbl-wrap"><table class="t" id="tblErpTeam"></table></div>
+          </div></div>
+
+          <!-- 판관비 명세 -->
+          <div id="erpSga" class="hide">
+            <div class="sec-title"><h2>판관비 명세</h2><span id="sgaPrev"></span></div>
+            <div class="card"><div class="hd"><div><h3>팀별 비교</h3>
+              <div class="desc">행을 누르면 비목과 적요가 펼쳐집니다.
+                증감 원인은 금액이 큰 순으로 뽑아 <b>신규 → 기존 → 소멸</b> 순으로 놓았습니다.</div></div></div>
+              <div class="bd" style="padding:0">
+                <div class="tbl-wrap" style="max-height:none"><table class="t acc" id="tblSgaTeam"></table></div>
+              </div></div>
+            <div class="card" style="margin-top:14px"><div class="hd"><div><h3>비목별 · 최종 OL 대비</h3></div></div>
+              <div class="bd" style="padding:0">
+                <div class="tbl-wrap" style="max-height:none"><table class="t" id="tblSgaCat"></table></div>
+              </div></div>
+          </div>
+
+          <!-- 매출 명세 -->
+          <div id="erpRev" class="hide">
+            <div class="sec-title"><h2>매출 명세</h2><span id="revNote"></span></div>
+            <div class="card"><div class="hd"><div><h3>영업그룹별 · 프로젝트별</h3>
+              <div class="desc">행을 누르면 프로젝트가 펼쳐집니다.</div></div></div>
+              <div class="bd" style="padding:0">
+                <div class="tbl-wrap" style="max-height:none"><table class="t acc" id="tblRevTeam"></table></div>
+              </div></div>
+          </div>
+        </div>
+      </section>
+
       <!-- ===== 설정 · 데이터 관리 ===== -->
       <section id="p-admin" class="hide">
         <div id="adGate" class="hide"></div>
@@ -202,13 +276,15 @@
   </div>
 </div>
 
-<script src="mp-auth.js?v=20260907e"></script>
-<script src="mp-data.js?v=20260907e"></script>
-<script src="mp-calc.js?v=20260907e"></script>
-<script src="mp-ui.js?v=20260907e"></script>
-<script src="mp-plan.js?v=20260907e"></script>
-<script src="mp-week.js?v=20260907e"></script>
-<script src="mp-admin.js?v=20260907e"></script>
+<script src="mp-auth.js?v=20260908a"></script>
+<script src="mp-data.js?v=20260908a"></script>
+<script src="mp-calc.js?v=20260908a"></script>
+<script src="mp-ui.js?v=20260908a"></script>
+<script src="mp-plan.js?v=20260908a"></script>
+<script src="mp-week.js?v=20260908a"></script>
+<script src="mp-admin.js?v=20260908a"></script>
+<script src="mp-import.js?v=20260908a"></script>
+<script src="mp-erp.js?v=20260908a"></script>
 <script>
 (function () {
   'use strict';
@@ -265,6 +341,7 @@
     dash:  ['경영현황 대시보드', '기간 · 팀 필터 · 계획 vs 최종 OL vs 확정실적'],
     plan:  ['월별 이동계획', '주차별 OL 입력 · 전주 대비 변동 · 확정실적 대비'],
     week:  ['주차별 변동 관리', '계획 → 전주 → 금주 · 변동 사유'],
+    erp:   ['확정 판관비 / 매출현황', 'ERP 확정본 대사 · 차이 사유 · 마감 확정'],
     admin: ['설정 · 데이터 관리', '월 개폐 · 확정 · 팀원 · 변경 이력'],
     check: ['연결 · 권한 점검', 'RLS 가 실제로 막는지 확인']
   };
@@ -272,12 +349,13 @@
     if (p === 'migrate') { location.href = 'migrate.html'; return; }
     UI.page = p;
     $$('#nav button').forEach(function (b) { b.classList.toggle('on', b.dataset.p === p); });
-    ['dash', 'plan', 'week', 'admin', 'check'].forEach(function (s) { $('#p-' + s).classList.toggle('hide', s !== p); });
+    ['dash', 'plan', 'week', 'erp', 'admin', 'check'].forEach(function (s) { $('#p-' + s).classList.toggle('hide', s !== p); });
     $('#pgTitle').textContent = TITLES[p][0];
     $('#pgSub').textContent = TITLES[p][1];
     if (p === 'dash') renderDash();
     if (p === 'plan') MpPlan.open(UI.month, UI.team);
     if (p === 'week') MpWeek.open(UI.month, UI.team);
+    if (p === 'erp') MpErp.open(UI.month);
     if (p === 'admin') MpAdmin.open();
     if (p === 'check') renderCheck();
   }
