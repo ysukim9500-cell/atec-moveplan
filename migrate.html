@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>이동계획 · 데이터 이관</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+<style>
+.wrap{max-width:900px;margin:0 auto;padding:24px 20px 70px}
+.hd1{display:flex;align-items:baseline;justify-content:space-between;gap:14px;margin-bottom:6px}
+.hd1 h1{margin:0;font-size:19px;font-weight:700;letter-spacing:-.4px}
+.drop{border:1px dashed var(--g2);border-radius:var(--r);padding:13px 14px;display:flex;
+  align-items:center;gap:12px;background:var(--soft);margin-bottom:9px}
+.drop .nm{flex:1;min-width:0}
+.drop .nm b{display:block;font-size:12.5px}
+.drop .nm span{display:block;font-size:11px;color:var(--muted);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drop.on{border-style:solid;border-color:var(--ok-line);background:var(--ok-bg)}
+.drop .req{font-size:10.5px;font-weight:700;color:var(--red-d);background:var(--red-soft);
+  border:1px solid var(--red-line);border-radius:9px;padding:1px 7px}
+table.t{width:100%;border-collapse:collapse;font-size:12.5px}
+table.t th,table.t td{padding:7px 9px;border-bottom:1px solid var(--rule2);text-align:left}
+table.t th{background:var(--soft);color:var(--muted);font-size:11px;font-weight:700}
+table.t td.n{text-align:right;font-family:var(--num);white-space:nowrap}
+.pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
+.pill.ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-line)}
+.pill.no{background:#FDEEF2;color:var(--red-d);border:1px solid var(--red-line)}
+.log{background:#1E2428;color:#C8D0D5;border-radius:var(--r);padding:12px 14px;font-size:11.5px;
+  line-height:1.75;max-height:300px;overflow:auto;font-family:var(--num)}
+.log b{color:#fff}
+.log .er{color:#FF9DB4}
+.log .ok{color:#8FE3B8}
+.bar{height:6px;background:var(--g1);border-radius:3px;overflow:hidden;margin:10px 0 4px}
+.bar i{display:block;height:100%;background:var(--red);width:0;transition:width .2s}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="hd1">
+    <h1>데이터 이관</h1>
+    <div style="display:flex;gap:7px">
+      <span class="chip" id="who">—</span>
+      <a class="btn" href="app.html">앱으로</a>
+    </div>
+  </div>
+  <p class="desc" style="margin:0 0 18px">
+    엑셀은 <b>사용자 PC에서 브라우저로 바로</b> 읽습니다. 어디에도 올라가지 않습니다.
+  </p>
+
+  <div id="gate"></div>
+
+  <div id="main" class="hide">
+    <div class="card" style="margin-bottom:14px">
+      <div class="hd"><div><h3>원본 파일</h3>
+        <div class="desc">주차 이력과 8/31 기준선은 엑셀이 아니라 기존 포털 HTML 안에 있습니다.</div></div></div>
+      <div class="bd">
+        <label class="drop" id="d1"><span class="req">필수</span>
+          <div class="nm"><b>이동계획 통합본 (.xlsx)</b><span id="n1">★2026년 고객지원사업부 이동계획_260907.xlsx</span></div>
+          <input type="file" id="f1" accept=".xlsx,.xls" hidden><span class="btn">선택</span></label>
+
+        <label class="drop" id="d2"><span class="req">필수</span>
+          <div class="nm"><b>기존 포털 HTML</b><span id="n2">ATEC_이동계획_ERP실적_포털_v20.html — 7·8월 주차 이력과 8/31 기준선</span></div>
+          <input type="file" id="f2" accept=".html,.htm" hidden><span class="btn">선택</span></label>
+
+        <label class="drop" id="d3">
+          <div class="nm"><b>ERP 매출현황 (.xlsx)</b><span id="n3">7월 매출현황.xlsx — 선택</span></div>
+          <input type="file" id="f3" accept=".xlsx,.xls" hidden><span class="btn">선택</span></label>
+
+        <label class="drop" id="d4">
+          <div class="nm"><b>ERP 판관비 (.xlsx)</b><span id="n4">7월 판관비.xlsx — 선택</span></div>
+          <input type="file" id="f4" accept=".xlsx,.xls" hidden><span class="btn">선택</span></label>
+
+        <label class="drop" id="d5">
+          <div class="nm"><b>이동계획차이 (.xlsx)</b><span id="n5">이동계획차이_260904.xlsx — 선택</span></div>
+          <input type="file" id="f5" accept=".xlsx,.xls" hidden><span class="btn">선택</span></label>
+
+        <button class="btn red wide" id="btnScan" style="margin-top:12px" disabled>분석</button>
+      </div>
+    </div>
+
+    <div class="card hide" id="cardChk" style="margin-bottom:14px">
+      <div class="hd"><div><h3>검증</h3>
+        <div class="desc">넣기 전에 기준 숫자와 맞는지 봅니다. 하나라도 어긋나면 이관하지 않습니다.</div></div></div>
+      <div class="bd">
+        <div style="overflow:auto"><table class="t" id="tblWeeks"></table></div>
+        <div style="overflow:auto;margin-top:14px"><table class="t" id="tblChk"></table></div>
+        <button class="btn red wide" id="btnRun" style="margin-top:14px">이관 실행</button>
+        <div class="bar"><i id="bar"></i></div>
+      </div>
+    </div>
+
+    <div class="card hide" id="cardLog">
+      <div class="hd"><h3>진행</h3></div>
+      <div class="bd"><div class="log" id="log"></div></div>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/xlsx.js"></script>
+<script src="mp-auth.js"></script>
+<script src="mp-import.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+  var TEAMS = MpImport.TEAMS, SEC_ITEMS = MpImport.SEC_ITEMS;
+  var M0 = 2026 * 12;
+  var mOf = function (mo) { return M0 + (mo - 1); };
+  var F = {};              /* 읽은 원본 */
+  var MODEL = null;        /* 만든 이관 모델 */
+
+  function log(msg, kind) {
+    var d = document.createElement('div');
+    d.className = kind || '';
+    d.innerHTML = msg;
+    $('#log').appendChild(d);
+    $('#log').scrollTop = $('#log').scrollHeight;
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m];
+    });
+  }
+
+  /* ---------- 진입 ---------- */
+  MpAuth.requireAuth().then(function (p) {
+    $('#who').innerHTML = esc(p.name) + ' · <b>' + esc(p.mpRole) + '</b>';
+    if (p.mpRole !== 'admin') {
+      $('#gate').innerHTML = '<div class="note err">데이터 이관은 경영지원팀(관리자)만 할 수 있습니다.</div>';
+      return;
+    }
+    $('#main').classList.remove('hide');
+  }).catch(function () {});
+
+  /* ---------- 파일 선택 ---------- */
+  [1, 2, 3, 4, 5].forEach(function (i) {
+    $('#f' + i).onchange = function () {
+      var f = this.files && this.files[0];
+      if (!f) return;
+      F[i] = f;
+      $('#n' + i).textContent = f.name + ' · ' + (f.size / 1024).toFixed(0) + 'KB';
+      $('#d' + i).classList.add('on');
+      $('#btnScan').disabled = !(F[1] && F[2]);
+    };
+  });
+
+  /* ---------- 기존 포털 HTML 에서 SEED / OLV 를 꺼낸다 ---------- */
+  function readPortal(file) {
+    return new Promise(function (res, rej) {
+      var fr = new FileReader();
+      fr.onload = function (e) {
+        try {
+          var t = e.target.result;
+          var i = t.indexOf('window.SEED=');
+          if (i < 0) throw new Error('window.SEED 를 찾지 못했습니다. v20 포털 HTML 이 맞는지 확인해 주세요.');
+          /* '<\/script>' 로 써야 한다 — 인라인 스크립트 안에 그대로 두면 여기서 블록이 끊긴다 */
+          var line = t.slice(i, t.indexOf('<\/script>', i));
+          line = line.replace(/^window\.SEED=/, '');
+          var cut = line.indexOf('};window.OLV=');
+          if (cut < 0) throw new Error('window.OLV 를 찾지 못했습니다.');
+          var seed = JSON.parse(line.slice(0, cut + 1));
+          var olv = JSON.parse(line.slice(cut + '};window.OLV='.length).replace(/;\s*$/, ''));
+          res({ seed: seed, olv: olv, text: t });
+        } catch (err) { rej(err); }
+      };
+      fr.onerror = function () { rej(new Error('HTML 읽기 실패')); };
+      fr.readAsText(file, 'utf-8');
+    });
+  }
+
+  /* v20 상수에서 ERP 매핑을 꺼낸다 */
+  function pickConst(text, name) {
+    var i = text.indexOf('var ' + name + ' = {');
+    if (i < 0) return null;
+    var s = text.indexOf('{', i), e = text.indexOf('};', s);
+    try { return JSON.parse(text.slice(s, e + 1)); } catch (x) { return null; }
+  }
+
+  function leaves(cb) {
+    Object.keys(SEC_ITEMS).forEach(function (sec) {
+      SEC_ITEMS[sec].forEach(function (item) { cb(sec, item); });
+    });
+  }
+
+  /* ---------- 분석 ---------- */
+  $('#btnScan').onclick = function () {
+    var b = this; b.disabled = true; b.textContent = '읽는 중…';
+    $('#cardLog').classList.remove('hide');
+    $('#log').innerHTML = '';
+
+    var P = {};
+    readPortal(F[2])
+      .then(function (r) { P.portal = r; log('포털 HTML — SEED ' + Object.keys(r.seed.months).length + '개월 · OLV 주차 이력 확보'); return MpImport.readFile(F[1]); })
+      .then(function (wb) { P.plan = MpImport.parsePlanBook(wb, 2026); log('이동계획 통합본 — 월 시트 ' + Object.keys(P.plan.months).length + '개 · 부속 시트 ' + P.plan.aux.length + '개'); return F[3] ? MpImport.readFile(F[3]) : null; })
+      .then(function (wb) { if (wb) { P.rev = MpImport.parseRevBook(wb); log('ERP 매출 — 시트 <b>' + esc(P.rev.sheet) + '</b> · ' + P.rev.rows.length + '건 · 기준 ' + P.rev.ymKeys.join(',')); } return F[4] ? MpImport.readFile(F[4]) : null; })
+      .then(function (wb) { if (wb) { P.sga = MpImport.parseSgaBook(wb); log('ERP 판관비 — 시트 <b>' + esc(P.sga.sheet) + '</b> · ' + P.sga.rows.length + '건 · 기준 ' + P.sga.ymKeys.join(',')); } return F[5] ? MpImport.readFile(F[5]) : null; })
+      .then(function (wb) { if (wb) { P.diff = MpImport.parseDiffBook(wb); log('이동계획차이 — 사유 ' + P.diff.length + '건'); } })
+      .then(function () { build(P); b.disabled = false; b.textContent = '분석'; })
+      .catch(function (e) { log('실패 — ' + esc(e.message), 'er'); b.disabled = false; b.textContent = '분석'; });
+  };
+
+  /* ---------- 이관 모델 만들기 ---------- */
+  function build(P) {
+    var seed = P.portal.seed, olv = P.portal.olv, NEW = P.plan.months;
+
+    function seedArr(mo, team, sec, item) {
+      var b = seed.months[String(mOf(mo))];
+      var t = b && b[team];
+      var s = t && t.pl && t.pl[sec];
+      return (s && s[item]) || null;
+    }
+    function olvVal(mo, k, team, sec, item) {
+      var vs = olv[String(mOf(mo))] || [], v = vs[k];
+      if (!v || !v.b || !v.b[team]) return null;
+      var s = v.b[team].pl[sec];
+      return s && s[item] != null ? s[item] : null;
+    }
+
+    /* 주차 = 그 월에 대해 제출된 값의 순번 */
+    var weeks = {};
+    for (var mo = 1; mo <= 12; mo++) {
+      (function (mo) {
+        var slots = [], vs = olv[String(mOf(mo))] || [];
+        if (vs.length) {
+          vs.forEach(function (v, k) {
+            slots.push({ label: v.date, get: function (t, s, i) { return olvVal(mo, k, t, s, i); } });
+          });
+        } else {
+          slots.push({ label: seed.meta.base, get: function (t, s, i) { var a = seedArr(mo, t, s, i); return a ? a[1] : null; } });
+        }
+
+        /* 마감된 달(ERP 확정본이 있는 달)은 새 주차를 받지 않는다 —
+           "마감 후 파일의 지난 달 수정값은 OL 로 인정하지 않는다"가 이 시스템의 규칙이다. */
+        var closed = !!(seed.erp && seed.erp['2026-' + String(mo).padStart(2, '0')]);
+        var last = slots[slots.length - 1];
+        var changed = !closed && TEAMS.some(function (team) {
+          var blk = NEW[mo] && NEW[mo][team]; if (!blk) return false;
+          var diff = false;
+          leaves(function (sec, item) {
+            if (diff) return;
+            var nv = blk.pl[sec] && blk.pl[sec][item] ? blk.pl[sec][item][1] : null;
+            var ov = last.get(team, sec, item);
+            if (nv != null && ov != null && Math.abs(nv - ov) > 0.0001) diff = true;
+            if (nv != null && ov == null) diff = true;
+          });
+          return diff;
+        });
+        if (changed) {
+          slots.push({
+            label: '2026-09-07', get: function (t, s, i) {
+              var blk = NEW[mo] && NEW[mo][t];
+              return blk && blk.pl[s] && blk.pl[s][i] ? blk.pl[s][i][1] : null;
+            }
+          });
+        }
+        weeks[mo] = slots;
+      })(mo);
+    }
+
+    /* 행 만들기 */
+    var plan = [], week = [], detail = [], notes = [], periods = [];
+    for (var mo2 = 1; mo2 <= 12; mo2++) {
+      var m = mOf(mo2);
+      periods.push({ m: m, weeks: weeks[mo2].length });
+      TEAMS.forEach(function (team) {
+        var blk = NEW[mo2] && NEW[mo2][team];
+        leaves(function (sec, item) {
+          var pv = blk && blk.pl[sec] && blk.pl[sec][item] ? blk.pl[sec][item][0] : null;
+          if (pv == null) { var a = seedArr(mo2, team, sec, item); pv = a ? a[0] : null; }
+          if (pv != null) plan.push({ m: m, team: team, sec: sec, item: item, val: pv });
+          weeks[mo2].forEach(function (slot, k) {
+            var v = slot.get(team, sec, item);
+            if (v != null) week.push({ m: m, team: team, sec: sec, item: item, k: k, val: v });
+          });
+        });
+        if (blk) blk.detail.forEach(function (d) {
+          detail.push({ m: m, team: team, k: weeks[mo2].length - 1, grp: d.grp, item: d.item, rev: d.rev, cost: d.cost, note: d.note || null, sort: d.sort });
+        });
+      });
+    }
+    (P.diff || []).forEach(function (d) {
+      notes.push({ kind: 'month', m: mOf(d.mo), team: '사업부합계', sec: null, item: d.item, k: null, body: d.note });
+    });
+
+    var aux = P.plan.aux.map(function (a) { return { year: 2026, name: a.name, rows: a.rows, merges: a.merges }; });
+
+    var erpRev = [], erpSga = [], erpM = null;
+    if (P.rev && P.rev.ymKeys.length === 1) {
+      erpM = ymFromKey(P.rev.ymKeys[0]);
+      erpRev = P.rev.rows.map(function (r) { var o = {}; for (var k in r) o[k] = r[k]; o.m = erpM; return o; });
+    }
+    if (P.sga && P.sga.ymKeys.length === 1) {
+      var sm = ymFromKey(P.sga.ymKeys[0]);
+      if (erpM != null && sm !== erpM) log('⚠ 매출과 판관비의 기준월이 다릅니다. 합치지 않습니다.', 'er');
+      erpSga = P.sga.rows.map(function (r) { var o = {}; for (var k in r) o[k] = r[k]; o.m = sm; return o; });
+      if (erpM == null) erpM = sm;
+    }
+
+    var acctMap = pickConst(P.portal.text, 'ACCOUNT_MAP') || {};
+    var orgMap = pickConst(P.portal.text, 'SGA_ORG_MAP') || {};
+
+    MODEL = { plan: plan, week: week, detail: detail, notes: notes, aux: aux, periods: periods,
+              erpRev: erpRev, erpSga: erpSga, erpM: erpM, acctMap: acctMap, orgMap: orgMap, weeks: weeks };
+
+    renderWeeks(weeks);
+    renderChecks();
+    $('#cardChk').classList.remove('hide');
+  }
+
+  function ymFromKey(k) { var a = String(k).split('-'); return parseInt(a[0], 10) * 12 + parseInt(a[1], 10) - 1; }
+
+  function renderWeeks(weeks) {
+    var h = '<thead><tr><th>월</th><th class="n">주차</th><th>제출 이력</th></tr></thead><tbody>';
+    for (var mo = 1; mo <= 12; mo++) {
+      h += '<tr><td>' + mo + '월</td><td class="n">' + weeks[mo].length + '주</td><td>' +
+        weeks[mo].map(function (s, k) { return (k + 1) + '주 ' + esc(s.label); }).join(' · ') + '</td></tr>';
+    }
+    $('#tblWeeks').innerHTML = h + '</tbody>';
+  }
+
+  /* 파생값을 저장하지 않으므로, 화면이 할 계산을 여기서 똑같이 해 본다 */
+  function sumWeek(mo, k, sec, items) {
+    var s = 0, any = false, m = mOf(mo);
+    MODEL.week.forEach(function (r) {
+      if (r.m !== m || r.k !== k || r.sec !== sec) return;
+      if (items.indexOf(r.item) < 0) return;
+      s += r.val; any = true;
+    });
+    return any ? Math.round(s * 10) / 10 : null;
+  }
+  function sumPlan(mo, sec, items) {
+    var s = 0, any = false, m = mOf(mo);
+    MODEL.plan.forEach(function (r) {
+      if (r.m !== m || r.sec !== sec) return;
+      if (items.indexOf(r.item) < 0) return;
+      s += r.val; any = true;
+    });
+    return any ? Math.round(s * 10) / 10 : null;
+  }
+
+  function renderChecks() {
+    var REV = SEC_ITEMS['매출'], W = MODEL.weeks;
+    var C = [];
+    var ck = function (n, got, want, tol) { C.push({ n: n, got: got, want: want, ok: got != null && Math.abs(got - want) <= (tol == null ? 0.15 : tol) }); };
+
+    ck('7월 최종 OL 매출', sumWeek(7, W[7].length - 1, '매출', REV), 1074.2);
+    ck('8월 5주 매출 (8/31)', sumWeek(8, 4, '매출', REV), 1746.0);
+    ck('8월 최종 OL 매출', sumWeek(8, W[8].length - 1, '매출', REV), 1746.8);
+    ck('9월 1주 매출 (8/31)', sumWeek(9, 0, '매출', REV), 2055.3);
+    ck('9월 최종 OL 매출 (9/7)', sumWeek(9, W[9].length - 1, '매출', REV), 1991.5);
+    ck('10월 최종 OL 매출', sumWeek(10, W[10].length - 1, '매출', REV), 2212.1);
+    ck('9월 월간계획 매출', sumPlan(9, '매출', REV), 878.4);
+
+    var cum = 0;
+    for (var mo = 1; mo <= 12; mo++) cum += sumPlan(mo, '매출', REV) || 0;
+    ck('12개월 매출 누적계획', Math.round(cum * 10) / 10, 13001.8, 0.3);
+
+    if (MODEL.erpRev.length) {
+      var s1 = Math.round(MODEL.erpRev.reduce(function (a, r) { return a + (r.amt || 0); }, 0));
+      ck('ERP 매출 총액(원)', s1, 1005512203, 1);
+      ck('ERP 매출 건수', MODEL.erpRev.length, 126);
+    }
+    if (MODEL.erpSga.length) {
+      var s2 = Math.round(MODEL.erpSga.reduce(function (a, r) { return a + (r.amt || 0); }, 0));
+      ck('ERP 판관비 총액(원)', s2, 365707080, 1);
+      ck('ERP 판관비 건수', MODEL.erpSga.length, 455);
+    }
+    ck('부속 시트 수', MODEL.aux.length, 6);
+
+    var bad = C.filter(function (c) { return !c.ok; }).length;
+    var h = '<thead><tr><th>검증 항목</th><th class="n">값</th><th class="n">기대</th><th class="n">결과</th></tr></thead><tbody>';
+    C.forEach(function (c) {
+      h += '<tr><td>' + esc(c.n) + '</td><td class="n">' + c.got + '</td><td class="n">' + c.want +
+        '</td><td class="n"><span class="pill ' + (c.ok ? 'ok' : 'no') + '">' + (c.ok ? '통과' : '불일치') + '</span></td></tr>';
+    });
+    h += '<tr><td colspan="4" style="background:var(--soft)"><b>행 수</b> — ' +
+      'mp_plan ' + MODEL.plan.length + ' · mp_week ' + MODEL.week.length + ' · mp_detail ' + MODEL.detail.length +
+      ' · mp_notes ' + MODEL.notes.length + ' · mp_aux ' + MODEL.aux.length +
+      ' · ERP ' + MODEL.erpRev.length + '/' + MODEL.erpSga.length + '</td></tr>';
+    $('#tblChk').innerHTML = h + '</tbody>';
+
+    $('#btnRun').disabled = bad > 0;
+    $('#btnRun').textContent = bad ? (bad + '건 불일치 — 이관할 수 없습니다') : '이관 실행';
+  }
+
+  /* ---------- 쓰기 ---------- */
+  function post(table, rows, conflict) {
+    if (!rows.length) return Promise.resolve(0);
+    var CH = 400, done = 0;
+    var step = function (i) {
+      if (i >= rows.length) return Promise.resolve(done);
+      var part = rows.slice(i, i + CH);
+      var url = table + (conflict ? ('?on_conflict=' + conflict) : '');
+      return MpAuth.rest(url, {
+        method: 'POST',
+        headers: { Prefer: (conflict ? 'resolution=merge-duplicates,' : '') + 'return=minimal' },
+        body: JSON.stringify(part)
+      }).then(function (r) {
+        if (!r.ok) return r.text().then(function (t) { throw new Error(table + ' ' + r.status + ' — ' + t.slice(0, 200)); });
+        done += part.length;
+        $('#bar').style.width = Math.round(done / rows.length * 100) + '%';
+        return step(i + CH);
+      });
+    };
+    return step(0);
+  }
+  function del(path) {
+    return MpAuth.rest(path, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+      .then(function (r) { if (!r.ok) return r.text().then(function (t) { throw new Error('DELETE ' + path + ' — ' + t.slice(0, 160)); }); });
+  }
+
+  $('#btnRun').onclick = function () {
+    var b = this; b.disabled = true; b.textContent = '이관 중…';
+    $('#cardLog').classList.remove('hide');
+    var R = 'mp_periods';
+
+    /* RLS 는 열린 달에만 쓰기를 허용한다. 이관 동안만 전부 열고 끝나면 되돌린다. */
+    var openAll = MODEL.periods.map(function (p) { return { m: p.m, state: 'open', weeks: p.weeks }; });
+
+    post(R, openAll, 'm')
+      .then(function () { log('1/8 · 12개월을 이관용으로 열었습니다'); return post('mp_plan', MODEL.plan, 'm,team,sec,item'); })
+      .then(function (n) { log('2/8 · 월간계획 <b>' + n + '</b>행', 'ok'); return post('mp_week', MODEL.week, 'm,team,sec,item,k'); })
+      .then(function (n) { log('3/8 · 주차별 OL <b>' + n + '</b>행', 'ok'); return del('mp_detail?m=gte.' + mOf(1) + '&m=lte.' + mOf(12)); })
+      .then(function () { return post('mp_detail', MODEL.detail); })
+      .then(function (n) { log('4/8 · 매출현황 상세 <b>' + n + '</b>행', 'ok'); return del('mp_notes?kind=eq.month&m=gte.' + mOf(1) + '&m=lte.' + mOf(12)); })
+      .then(function () { return post('mp_notes', MODEL.notes); })
+      .then(function (n) { log('5/8 · 변동 사유 <b>' + n + '</b>건', 'ok'); return post('mp_aux', MODEL.aux, 'year,name'); })
+      .then(function (n) { log('6/8 · 부속 시트 <b>' + n + '</b>개', 'ok'); return erpStep(); })
+      .then(function () { return mapStep(); })
+      .then(function () { return finalize(); })
+      .then(function () {
+        log('<b>이관 완료</b>', 'ok');
+        b.textContent = '이관 완료';
+      })
+      .catch(function (e) {
+        log('실패 — ' + esc(e.message), 'er');
+        log('월 개폐 상태를 되돌립니다.', 'er');
+        finalize().then(function () { b.disabled = false; b.textContent = '다시 시도'; });
+      });
+  };
+
+  function erpStep() {
+    if (!MODEL.erpRev.length && !MODEL.erpSga.length) { log('7/8 · ERP 파일 없음 — 건너뜁니다'); return Promise.resolve(); }
+    var m = MODEL.erpM;
+    return del('mp_erp_rev?m=eq.' + m)
+      .then(function () { return del('mp_erp_sga?m=eq.' + m); })
+      .then(function () { return post('mp_erp_rev', MODEL.erpRev); })
+      .then(function () { return post('mp_erp_sga', MODEL.erpSga); })
+      .then(function () {
+        return post('mp_erp_meta', [{ m: m, rev_cnt: MODEL.erpRev.length, sga_cnt: MODEL.erpSga.length }], 'm');
+      })
+      .then(function () { log('7/8 · ERP 매출 <b>' + MODEL.erpRev.length + '</b> · 판관비 <b>' + MODEL.erpSga.length + '</b>건', 'ok'); });
+  }
+
+  function mapStep() {
+    var a = Object.keys(MODEL.acctMap).map(function (k) { return { acct: k, cat: MODEL.acctMap[k] }; });
+    var o = Object.keys(MODEL.orgMap).map(function (k) { return { org: k, org6: MODEL.orgMap[k] }; });
+    return post('mp_acct_map', a, 'acct')
+      .then(function () { return post('mp_org_map', o, 'org'); })
+      .then(function () { log('8/8 · ERP 매핑 계정 <b>' + a.length + '</b> · 조직 <b>' + o.length + '</b>', 'ok'); });
+  }
+
+  /* 이관이 끝나면 실제 운영 상태로 되돌린다.
+     ERP 확정본이 있는 달은 final, 지나간 달은 closed, 지금 쓰는 달만 open. */
+  function finalize() {
+    var rows = MODEL.periods.map(function (p) {
+      var mo = (p.m % 12) + 1;
+      var st = 'closed';
+      if (mo === 9) st = 'open';
+      var o = { m: p.m, state: st, weeks: p.weeks };
+      if (MODEL.erpM != null && p.m === MODEL.erpM) { o.state = 'final'; o.final_k = p.weeks - 1; o.final_src = 'ERP 마감 (이관)'; }
+      return o;
+    });
+    return post('mp_periods', rows, 'm').then(function () {
+      log('월 개폐 상태 정리 — 9월 open · ERP 마감월 final · 나머지 closed');
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
