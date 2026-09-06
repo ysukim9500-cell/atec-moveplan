@@ -6,46 +6,6 @@
 <title>ATEC 이동계획</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="styles.css">
-<style>
-/* 앱 껍데기 — 화면이 붙기 전까지의 최소 레이아웃 */
-.app{display:flex;min-height:100vh}
-.rail{width:var(--rail);flex:0 0 var(--rail);background:#333B41;color:#E6EAEC;
-  position:fixed;top:0;bottom:0;left:0;z-index:60;display:flex;flex-direction:column}
-.rail .brand{padding:18px;border-bottom:1px solid rgba(255,255,255,.09)}
-.rail .brand b{display:block;font-size:14px;color:#fff}
-.rail .brand span{display:block;margin-top:6px;font-size:11px;color:#A9B2B8;line-height:1.5}
-.nav{padding:10px 8px;flex:1;overflow:auto}
-.nav .grp{font-size:11px;color:#828D94;padding:14px 10px 5px;font-weight:700}
-.nav button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;
-  color:#CDD4D8;text-align:left;padding:9px 11px;border-radius:6px;margin:1px 0;cursor:pointer;
-  font-weight:600;font-size:13px;border-left:3px solid transparent}
-.nav button:hover{background:rgba(255,255,255,.06);color:#fff}
-.nav button.on{background:rgba(255,255,255,.10);color:#fff;border-left-color:var(--red);font-weight:700}
-.nav button:disabled{opacity:.38;cursor:not-allowed}
-.railfoot{padding:12px 16px 15px;font-size:11px;color:#8B959B;line-height:1.65;
-  border-top:1px solid rgba(255,255,255,.08)}
-.railfoot b{color:#C4CBD0}
-.main{margin-left:var(--rail);width:calc(100% - var(--rail));min-width:0}
-header.top{height:var(--hdr);background:var(--paper);border-bottom:1px solid var(--rule);
-  display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 20px;
-  position:sticky;top:0;z-index:50}
-header.top b{font-size:19px;font-weight:700;letter-spacing:-.4px}
-.content{padding:18px 20px 60px;max-width:1760px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-table.chk{width:100%;border-collapse:collapse;font-size:12.5px}
-table.chk th,table.chk td{padding:8px 10px;border-bottom:1px solid var(--rule2);text-align:left}
-table.chk th{background:var(--soft);color:var(--muted);font-size:11px;font-weight:700}
-table.chk td.v{text-align:right;font-family:var(--num);white-space:nowrap}
-.pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
-.pill.ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-line)}
-.pill.no{background:#FDEEF2;color:var(--red-d);border:1px solid var(--red-line)}
-.pill.wait{background:var(--g1);color:var(--muted);border:1px solid var(--g2)}
-@media (max-width:900px){
-  .rail{display:none}
-  .main{margin-left:0;width:100%}
-  .grid2{grid-template-columns:1fr}
-}
-</style>
 </head>
 <body>
 
@@ -55,18 +15,18 @@ table.chk td.v{text-align:right;font-family:var(--num);white-space:nowrap}
       <b>고객지원사업부</b>
       <span>이동계획 · ERP 실적</span>
     </div>
-    <nav class="nav">
+    <nav class="nav" id="nav">
       <div class="grp">현황</div>
-      <button data-p="home" class="on">연결 · 권한 점검</button>
-      <button data-p="dash" disabled>경영현황 대시보드</button>
+      <button data-p="dash" class="on">경영현황 대시보드</button>
       <div class="grp">계획 관리</div>
       <button data-p="plan" disabled>월별 이동계획</button>
       <button data-p="week" disabled>주차별 변동 관리</button>
-      <button data-p="aux"  disabled>이동계획 부속 시트</button>
+      <button data-p="aux" disabled>이동계획 부속 시트</button>
       <div class="grp">실적 검토</div>
-      <button data-p="erp"  disabled>확정 판관비/매출현황</button>
+      <button data-p="erp" disabled>확정 판관비/매출현황</button>
       <div class="grp">데이터</div>
-      <button data-p="admin" disabled>설정 · 데이터 관리</button>
+      <button data-p="check">연결 · 권한 점검</button>
+      <button data-p="migrate" id="navMig">데이터 이관</button>
     </nav>
     <div class="railfoot">
       단위 <b>백만원</b><br>
@@ -76,7 +36,7 @@ table.chk td.v{text-align:right;font-family:var(--num);white-space:nowrap}
 
   <div class="main">
     <header class="top">
-      <b id="pgTitle">연결 · 권한 점검</b>
+      <div class="crumb"><b id="pgTitle">경영현황 대시보드</b> <span id="pgSub"></span></div>
       <div style="display:flex;gap:7px;align-items:center">
         <span class="chip" id="chipWho">—</span>
         <button class="btn" id="btnLogout">로그아웃</button>
@@ -84,173 +44,392 @@ table.chk td.v{text-align:right;font-family:var(--num);white-space:nowrap}
     </header>
 
     <div class="content">
-      <div class="note info">
-        아직 화면이 붙기 전 단계입니다. 이 페이지는 <b>서버 연결과 권한 차단이 설계대로 동작하는지</b>를 실제로 확인합니다.
-        여기가 전부 통과해야 그 위에 화면을 올립니다.
-      </div>
+      <div id="boot" class="note info">데이터를 불러오는 중입니다…</div>
 
-      <div class="grid2">
-        <div class="card">
-          <div class="hd"><div><h3>내 계정</h3>
-            <div class="desc">서버가 알려준 값입니다. 화면에 저장된 값이 아닙니다.</div></div></div>
-          <div class="bd"><table class="chk"><tbody id="tblMe"></tbody></table></div>
+      <!-- ===== 대시보드 ===== -->
+      <section id="p-dash" class="hide">
+        <div class="gbar">
+          <div class="gline"><span class="glabel">기준 월</span><div class="tabs" id="fMonth"></div></div>
+          <div class="gline"><span class="glabel">기간</span><div class="tabs" id="fPeriod"></div>
+            <div class="spacer"></div><span class="chip" id="fRange"></span></div>
+          <div class="gline"><span class="glabel">사업부 · 팀</span><div class="tabs" id="fTeam"></div></div>
         </div>
 
-        <div class="card">
-          <div class="hd"><div><h3>권한 차단 점검</h3>
-            <div class="desc">RLS 를 직접 때려 봅니다. <b>거부되어야 정상</b>인 항목이 섞여 있습니다.</div></div>
+        <div class="sec-title"><h2 id="scopeTitle">사업부 합계</h2><span id="scopeSub"></span></div>
+        <div class="grid g4" id="kpis"></div>
+
+        <div class="sec-title"><h2>기간별 요약</h2><span>블록을 누르면 그 기간으로 바뀝니다 · 매출 기준</span></div>
+        <div class="pblocks" id="pblocks"></div>
+
+        <div class="sec-title"><h2>월별 추이</h2><span>월간계획 · 최종 OL · 확정실적</span></div>
+        <div class="grid g21">
+          <div class="card">
+            <div class="hd"><div><h3>월별 매출</h3>
+              <div class="desc">회색 배경이 선택한 기간입니다. 확정실적은 ERP가 올라온 달만 나옵니다.</div></div>
+              <div class="legend" id="lgMain"></div></div>
+            <div class="bd"><div class="chart" id="chMain"></div></div>
+          </div>
+          <div class="card">
+            <div class="hd"><div><h3>팀별 기여</h3><div class="desc" style="margin:0">선택 기간 매출 합계</div></div></div>
+            <div class="bd"><div id="chTeam"></div></div>
+          </div>
+        </div>
+
+        <div class="sec-title"><h2>팀별 요약</h2><span id="teamSub"></span></div>
+        <div class="card"><div class="bd" style="padding:0">
+          <div class="tbl-wrap"><table class="t" id="tblTeam"></table></div></div></div>
+
+        <div class="sec-title"><h2>변동 사유</h2><span id="noteSub"></span></div>
+        <div class="card"><div class="bd" style="padding:0">
+          <div class="tbl-wrap"><table class="t" id="tblNotes"></table></div></div></div>
+      </section>
+
+      <!-- ===== 권한 점검 ===== -->
+      <section id="p-check" class="hide">
+        <div class="note info">
+          서버 연결과 권한 차단이 설계대로 동작하는지 <b>실제 요청을 보내</b> 확인합니다.
+          <b>거부되어야 정상</b>인 항목이 섞여 있습니다.
+        </div>
+        <div class="grid g2">
+          <div class="card"><div class="hd"><div><h3>내 계정</h3>
+            <div class="desc">서버가 알려준 값입니다.</div></div></div>
+            <div class="bd"><table class="t"><tbody id="tblMe"></tbody></table></div></div>
+          <div class="card"><div class="hd"><div><h3>권한 차단</h3>
+            <div class="desc">화면이 아니라 RLS 가 막는지 봅니다.</div></div>
             <button class="btn" id="btnRecheck">다시 점검</button></div>
-          <div class="bd"><table class="chk">
-            <thead><tr><th>점검 항목</th><th style="width:96px">기대</th><th style="width:96px">결과</th></tr></thead>
-            <tbody id="tblChk"></tbody></table></div>
+            <div class="bd"><table class="t">
+              <thead><tr><th>점검</th><th class="n" style="width:78px">기대</th><th class="n" style="width:88px">결과</th></tr></thead>
+              <tbody id="tblChk"></tbody></table></div></div>
         </div>
-      </div>
+      </section>
     </div>
   </div>
 </div>
 
 <script src="mp-auth.js"></script>
+<script src="mp-data.js"></script>
+<script src="mp-calc.js"></script>
+<script src="mp-ui.js"></script>
 <script>
 (function () {
   'use strict';
-  var $ = function (s) { return document.querySelector(s); };
+  var $ = MpUI.$, $$ = MpUI.$$, esc = MpUI.esc, fmt = MpUI.fmt, fmt0 = MpUI.fmt0,
+      sgn = MpUI.sgn, dcls = MpUI.dcls, pct = MpUI.pct, C = MpUI.C;
+  var D = MpData, K = MpCalc;
 
-  var TEAMS = ['광역버스사업팀','택시지원팀','리페어팀','수도권버스지원팀','AFC지원파트','실공통'];
+  var YEAR = 2026;
+  var UI = { page: 'dash', month: null, period: 'm', team: D.TOTAL };
 
+  var PERIODS = [
+    { id: 'm',   label: '당월',   kind: 'month' },
+    { id: 'q1',  label: '1분기',  ms: [1, 2, 3] },
+    { id: 'q2',  label: '2분기',  ms: [4, 5, 6] },
+    { id: 'h1',  label: '상반기', ms: [1, 2, 3, 4, 5, 6] },
+    { id: 'q3',  label: '3분기',  ms: [7, 8, 9] },
+    { id: 'ytd', label: '누적',   kind: 'ytd' },
+    { id: 'q4',  label: '4분기',  ms: [10, 11, 12] },
+    { id: 'h2',  label: '하반기', ms: [7, 8, 9, 10, 11, 12] },
+    { id: 'y',   label: '연간',   ms: [1,2,3,4,5,6,7,8,9,10,11,12] }
+  ];
+  function curPeriod() { return PERIODS.filter(function (p) { return p.id === UI.period; })[0]; }
+  function monthsOf(p) {
+    var y = YEAR;
+    if (p.kind === 'month') return [UI.month];
+    if (p.kind === 'ytd') { var o = []; for (var i = 1; i <= D.moOf(UI.month); i++) o.push(D.mOf(y, i)); return o; }
+    return p.ms.map(function (mo) { return D.mOf(y, mo); });
+  }
+  var ALL = []; for (var i = 1; i <= 12; i++) ALL.push(D.mOf(YEAR, i));
+
+  /* ---------- 부팅 ---------- */
   MpAuth.requireAuth().then(function (p) {
-    renderMe(p);
-    runChecks(p);
-  }).catch(function () { /* requireAuth 가 로그인 화면으로 보낸다 */ });
-
-  $('#btnLogout').onclick = function () { MpAuth.logout(); location.replace('index.html'); };
-  $('#btnRecheck').onclick = function () { runChecks(MpAuth.me()); };
-
-  function teamLabel(t) {
-    if (!t) return '(미지정)';
-    return t === '*' ? '전체 (관리자)' : t;
-  }
-
-  /* m = year*12 + (month-1) */
-  function mLabel(m) {
-    return Math.floor(m / 12) + '년 ' + ((m % 12) + 1) + '월';
-  }
-
-  function renderMe(p) {
-    var rows = [
-      ['이름', p.name],
-      ['이메일', p.email],
-      ['승인 상태', p.status],
-      ['이동계획 역할', p.mpRole || '(미지정)'],
-      ['소속 팀', teamLabel(p.team)],
-      ['인증 단계', MpAuth.aal() + (MpAuth.isAal2() ? ' · 2단계 통과' : ' · 2단계 미통과')]
-    ];
-    $('#tblMe').innerHTML = rows.map(function (r) {
-      return '<tr><th style="width:120px">' + r[0] + '</th><td>' + esc(r[1]) + '</td></tr>';
-    }).join('');
     $('#chipWho').innerHTML = esc(p.name) + ' · <b>' + esc(teamLabel(p.team)) + '</b>';
-    $('#whoFoot').innerHTML = esc(p.mpRole || '—') + ' · <b>' + esc(teamLabel(p.team)) + '</b>';
+    $('#whoFoot').innerHTML = esc(p.mpRole) + ' · <b>' + esc(teamLabel(p.team)) + '</b>';
+    if (p.mpRole !== 'admin') $('#navMig').disabled = true;
+    return D.load(YEAR);
+  }).then(function () {
+    /* 기준 월 : 열려 있는 달, 없으면 마지막으로 값이 있는 달 */
+    var open = ALL.filter(function (m) { return D.isOpen(m); });
+    UI.month = open.length ? open[open.length - 1] : ALL[ALL.length - 1];
+    /* ERP 가 있는 달은 확정실적을 쓸 수 있게 미리 읽어 둔다 */
+    return Promise.all(D.erpMonths().map(function (m) { return D.loadErp(m); }));
+  }).then(function () {
+    $('#boot').classList.add('hide');
+    go('dash');
+  }).catch(function (e) {
+    if (e) $('#boot').outerHTML = '<div class="note err">불러오지 못했습니다 — ' + esc(e.message || e) + '</div>';
+  });
+
+  function teamLabel(t) { return t === '*' ? '전체 (관리자)' : (D.TEAM_LABEL[t] || t || '—'); }
+
+  /* ---------- 화면 전환 ---------- */
+  var TITLES = {
+    dash:  ['경영현황 대시보드', '기간 · 팀 필터 · 계획 vs 최종 OL vs 확정실적'],
+    check: ['연결 · 권한 점검', 'RLS 가 실제로 막는지 확인']
+  };
+  function go(p) {
+    if (p === 'migrate') { location.href = 'migrate.html'; return; }
+    UI.page = p;
+    $$('#nav button').forEach(function (b) { b.classList.toggle('on', b.dataset.p === p); });
+    ['dash', 'check'].forEach(function (s) { $('#p-' + s).classList.toggle('hide', s !== p); });
+    $('#pgTitle').textContent = TITLES[p][0];
+    $('#pgSub').textContent = TITLES[p][1];
+    if (p === 'dash') renderDash();
+    if (p === 'check') renderCheck();
+  }
+  $$('#nav button').forEach(function (b) {
+    b.onclick = function () { if (!this.disabled) go(this.dataset.p); };
+  });
+  $('#btnLogout').onclick = function () { MpAuth.logout(); location.replace('index.html'); };
+
+  /* ---------- 대시보드 ---------- */
+  function renderDash() {
+    /* 필터 — 차트 위 한 줄 */
+    MpUI.tabs($('#fMonth'), ALL.map(function (m) {
+      var st = D.stateOf(m);
+      return { id: m, label: D.moOf(m) + '월', dim: st === 'closed',
+               mark: st === 'final' ? '🔒' : (st === 'open' ? '●' : ''),
+               title: st === 'final' ? '최종확정 · 잠금' : (st === 'open' ? '작성 가능' : '마감') };
+    }), UI.month, function (m) { UI.month = m; renderDash(); });
+
+    MpUI.tabs($('#fPeriod'), PERIODS.map(function (p) { return { id: p.id, label: p.label }; }),
+      UI.period, function (v) { UI.period = v; renderDash(); });
+
+    MpUI.tabs($('#fTeam'), [{ id: D.TOTAL, label: '사업부 합계' }].concat(
+      D.TEAMS.map(function (t) { return { id: t, label: D.teamName(t) }; })
+    ), UI.team, function (t) { UI.team = t; renderDash(); });
+
+    var ms = monthsOf(curPeriod());
+    var team = UI.team;
+    $('#fRange').textContent = ms.length === 1 ? (YEAR + '년 ' + D.moOf(ms[0]) + '월')
+      : (D.moOf(ms[0]) + '월 ~ ' + D.moOf(ms[ms.length - 1]) + '월 (' + ms.length + '개월)');
+    $('#scopeTitle').textContent = D.teamName(team);
+    var bl = K.blend(ms, team);
+    $('#scopeSub').textContent = curPeriod().label + ' · ' + bl.label +
+      (bl.closed.length ? (' · 마감 ' + bl.closed.length + '개월') : '');
+
+    renderKpis(ms, team, bl);
+    renderBlocks(team);
+    renderTrend(ms, team);
+    renderTeamBars(ms);
+    renderTeamTable(ms);
+    renderNotes(ms);
   }
 
-  function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) {
-      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m];
+  /* KPI — 차트가 아니라 수치 타일. 계획 / 최종 OL / 확정실적을 나란히 둔다. */
+  function renderKpis(ms, team, bl) {
+    var plan = K.sumMetrics(ms, team, 'plan') || {};
+    var ol = K.sumMetrics(ms, team, 'ol') || {};
+    var actC = bl.closed.length ? sumAct(bl.closed, team) : null;
+
+    var defs = [
+      { k: 'rev', n: '매출' }, { k: 'gp', n: '매출이익' },
+      { k: 'sga', n: '판관비' }, { k: 'op', n: '영업이익' }
+    ];
+    $('#kpis').innerHTML = defs.map(function (d) {
+      var main = bl[d.k];
+      var dp = (plan[d.k] == null) ? null : main - plan[d.k];
+      var actTxt = actC == null ? '<span class="zero">ERP 미마감</span>'
+        : '<b>' + fmt(actC[d.k]) + '</b>';
+      var dAct = (actC == null || ol[d.k] == null) ? null : actC[d.k] - sumOlOf(bl.closed, team, d.k);
+      return '<div class="kpi">' +
+        '<div class="lb">' + d.n + ' <span class="chip" style="padding:1px 6px;font-size:10.5px">' + esc(bl.label) + '</span></div>' +
+        '<div class="vl">' + fmt(main) + '<small>백만</small></div>' +
+        '<div class="row"><span>계획</span><b>' + fmt(plan[d.k]) + '</b>' +
+          '<span class="d ' + dcls(dp) + '">' + sgn(dp, 0) + '</span></div>' +
+        '<div class="row"><span>최종 OL</span><b>' + fmt(ol[d.k]) + '</b>' +
+          '<span class="d">&nbsp;</span></div>' +
+        '<div class="row"><span>확정실적</span>' + actTxt +
+          '<span class="d ' + dcls(dAct) + '">' + (dAct == null ? '' : sgn(dAct, 0)) + '</span></div>' +
+        '</div>';
+    }).join('');
+  }
+  function sumAct(ms, team) {
+    var o = { rev: 0, cost: 0, gp: 0, sga: 0, op: 0, gongpan: 0, op2: 0 }, any = false;
+    ms.forEach(function (m) {
+      var a = K.act(m, team); if (!a) return;
+      any = true; Object.keys(o).forEach(function (k) { if (a[k] != null) o[k] += a[k]; });
+    });
+    return any ? o : null;
+  }
+  function sumOlOf(ms, team, k) {
+    var s = 0; ms.forEach(function (m) { var x = K.metrics(m, team, 'ol'); if (x[k] != null) s += x[k]; });
+    return s;
+  }
+
+  function renderBlocks(team) {
+    var show = ['q1', 'q2', 'h1', 'q3', 'ytd', 'q4', 'h2', 'y'];
+    $('#pblocks').innerHTML = show.map(function (id) {
+      var p = PERIODS.filter(function (x) { return x.id === id; })[0];
+      var ms = monthsOf(p), bl = K.blend(ms, team);
+      var plan = K.sumMetrics(ms, team, 'plan') || {};
+      return '<button class="pb' + (UI.period === id ? ' on' : '') + '" data-p="' + id + '">' +
+        '<div class="t">' + esc(p.label) + '</div>' +
+        '<div class="s">' + D.moOf(ms[0]) + '월~' + D.moOf(ms[ms.length - 1]) + '월 · ' + esc(bl.label) + '</div>' +
+        '<div class="v">' + fmt0(bl.rev) + '</div>' +
+        '<div class="m">계획 ' + fmt0(plan.rev) + ' · <b class="' + dcls(bl.rev - (plan.rev || 0)) + '">' +
+          (plan.rev ? pct(bl.rev / plan.rev) : '–') + '</b></div>' +
+        '</button>';
+    }).join('');
+    $$('#pblocks .pb').forEach(function (b) {
+      b.onclick = function () { UI.period = this.dataset.p; renderDash(); };
     });
   }
 
-  /* 각 점검은 실제 요청을 보내고, 기대한 대로 허용/거부되는지 본다.
-     열린 달을 서버에서 먼저 읽어 와야 "열린 달에는 써진다"를 실제로 확인할 수 있다. */
-  function runChecks(p) {
-    MpAuth.rest('mp_periods?select=m&state=eq.open&order=m&limit=1')
-      .then(function (r) { return r.ok ? r.json() : []; })
-      .then(function (rows) { paintChecks(p, rows && rows[0] ? rows[0].m : null); })
-      .catch(function () { paintChecks(p, null); });
+  function renderTrend(ms, team) {
+    MpUI.legend($('#lgMain'), [
+      { name: '월간계획', color: C.plan }, { name: '최종 OL', color: C.ol }, { name: '확정실적', color: C.act }
+    ]);
+    var labels = ALL.map(function (m) { return D.moOf(m) + '월'; });
+    var idx = ms.map(function (m) { return ALL.indexOf(m); }).filter(function (i) { return i >= 0; });
+    MpUI.lineChart($('#chMain'), {
+      labels: labels, h: 250, shade: idx,
+      aria: '월별 매출 추이 — 월간계획 · 최종 OL · 확정실적',
+      series: [
+        { name: '계획', color: C.plan, values: ALL.map(function (m) { return K.PL(m, team, '매출', '합계'); }) },
+        { name: 'OL', color: C.ol, values: ALL.map(function (m) { return K.OL(m, team, '매출', '합계'); }) },
+        { name: '실적', color: C.act, values: ALL.map(function (m) { var a = K.act(m, team); return a ? a.rev : null; }) }
+      ]
+    });
   }
 
-  function paintChecks(p, openM) {
-    var body = $('#tblChk');
+  function renderTeamBars(ms) {
+    var rows = D.TEAMS.map(function (t) {
+      var bl = K.blend(ms, t);
+      return { name: D.teamName(t), v: bl.rev, sub: bl.label };
+    }).sort(function (a, b) { return b.v - a.v; });
+    MpUI.barsH($('#chTeam'), { rows: rows, color: C.act, unit: '매출 (백만원)' });
+  }
+
+  function renderTeamTable(ms) {
+    $('#teamSub').textContent = '행을 누르면 그 팀으로 바뀝니다 · ' + curPeriod().label;
+    var h = '<thead><tr><th>팀</th><th class="n">월간계획</th><th class="n">최종 OL</th>' +
+      '<th class="n">계획 대비</th><th class="n">달성률</th><th class="n">매출이익</th>' +
+      '<th class="n">판관비</th><th class="n">영업이익</th><th class="n">확정실적</th></tr></thead><tbody>';
+    var tot = { pv: 0, ol: 0, gp: 0, sga: 0, op: 0, act: 0, hasAct: false };
+    D.TEAMS.forEach(function (t) {
+      var pl = K.sumMetrics(ms, t, 'plan') || {}, o = K.sumMetrics(ms, t, 'ol') || {};
+      var a = sumAct(ms.filter(function (m) { return K.act(m, t); }), t);
+      var d = (o.rev || 0) - (pl.rev || 0);
+      tot.pv += pl.rev || 0; tot.ol += o.rev || 0; tot.gp += o.gp || 0;
+      tot.sga += o.sga || 0; tot.op += o.op || 0;
+      if (a) { tot.act += a.rev; tot.hasAct = true; }
+      h += '<tr class="trow" data-t="' + esc(t) + '" style="cursor:pointer">' +
+        '<td>' + esc(D.teamName(t)) + '</td>' +
+        '<td class="n">' + fmt(pl.rev) + '</td><td class="n">' + fmt(o.rev) + '</td>' +
+        '<td class="n ' + dcls(d) + '">' + sgn(d) + '</td>' +
+        '<td class="n">' + (pl.rev ? pct(o.rev / pl.rev) : '–') + '</td>' +
+        '<td class="n">' + fmt(o.gp) + '</td><td class="n">' + fmt(o.sga) + '</td>' +
+        '<td class="n">' + fmt(o.op) + '</td>' +
+        '<td class="n">' + (a ? fmt(a.rev) : '<span class="zero">–</span>') + '</td></tr>';
+    });
+    var dt = tot.ol - tot.pv;
+    h += '<tr class="grand"><td>사업부 합계</td><td class="n">' + fmt(tot.pv) + '</td>' +
+      '<td class="n">' + fmt(tot.ol) + '</td><td class="n ' + dcls(dt) + '">' + sgn(dt) + '</td>' +
+      '<td class="n">' + (tot.pv ? pct(tot.ol / tot.pv) : '–') + '</td>' +
+      '<td class="n">' + fmt(tot.gp) + '</td><td class="n">' + fmt(tot.sga) + '</td>' +
+      '<td class="n">' + fmt(tot.op) + '</td>' +
+      '<td class="n">' + (tot.hasAct ? fmt(tot.act) : '<span class="zero">–</span>') + '</td></tr>';
+    $('#tblTeam').innerHTML = h + '</tbody>';
+    $$('#tblTeam tr.trow').forEach(function (tr) {
+      tr.onclick = function () { UI.team = this.dataset.t; renderDash(); };
+    });
+  }
+
+  function renderNotes(ms) {
+    var set = {}; ms.forEach(function (m) { set[m] = 1; });
+    var rows = D.notesOf('month').filter(function (n) { return set[n.m]; })
+      .sort(function (a, b) { return a.m - b.m; });
+    $('#noteSub').textContent = rows.length ? (rows.length + '건') : '해당 기간에 기록된 사유가 없습니다';
+    if (!rows.length) { $('#tblNotes').innerHTML = ''; return; }
+    var h = '<thead><tr><th style="width:64px">월</th><th style="width:90px">항목</th><th>사유</th></tr></thead><tbody>';
+    rows.forEach(function (n) {
+      h += '<tr><td>' + D.moOf(n.m) + '월</td><td>' + esc(n.item) + '</td>' +
+        '<td class="txt">' + esc(n.body) + '</td></tr>';
+    });
+    $('#tblNotes').innerHTML = h + '</tbody>';
+  }
+
+  /* ---------- 권한 점검 ---------- */
+  function renderCheck() {
+    var p = MpAuth.me();
+    $('#tblMe').innerHTML = [
+      ['이름', p.name], ['이메일', p.email], ['승인 상태', p.status],
+      ['이동계획 역할', p.mpRole || '(미지정)'], ['소속 팀', teamLabel(p.team)],
+      ['인증 단계', MpAuth.aal() + (MpAuth.isAal2() ? ' · 2단계 통과' : ' · 미통과')]
+    ].map(function (r) { return '<tr><th style="width:118px">' + r[0] + '</th><td>' + esc(r[1]) + '</td></tr>'; }).join('');
+    runChecks(p);
+  }
+  $('#btnRecheck').onclick = function () { runChecks(MpAuth.me()); };
+
+  function runChecks(p) {
     var admin = p.mpRole === 'admin';
-    var mine = (p.team && TEAMS.indexOf(p.team) >= 0) ? p.team : TEAMS[0];
-    var other = TEAMS.filter(function (t) { return t !== mine; })[0];
-    var CLOSED = 999999;   /* mp_periods 에 없는 달 = closed 로 판정된다 */
+    var mine = (p.team && D.TEAMS.indexOf(p.team) >= 0) ? p.team : D.TEAMS[0];
+    var other = D.TEAMS.filter(function (t) { return t !== mine; })[0];
+    var openM = ALL.filter(function (m) { return D.isOpen(m); })[0];
+    var closedM = ALL.filter(function (m) { return !D.isOpen(m); })[0];
+    var finalM = ALL.filter(function (m) { return D.isFinal(m); })[0];
 
     var checks = [
-      { name: '월 개폐 상태 읽기', want: '허용',
-        run: function () { return read('mp_periods?select=m,state&limit=1'); } },
-      { name: '주차별 OL 읽기 (전 팀)', want: '허용',
-        run: function () { return read('mp_week?select=m&limit=1'); } },
-      { name: '설정값 읽기', want: '허용',
-        run: function () { return read('mp_config?select=key&limit=1'); } },
-
-      { name: openM == null ? '열린 달에 쓰기 (열린 달 없음)' : ('열린 달(' + mLabel(openM) + ')에 ' + mine + ' 값 쓰기'),
-        want: '허용', skip: openM == null,
-        run: function () { return write(mine, openM); } },
-
-      { name: '닫힌 달에 ' + mine + ' 값 쓰기', want: '거부',
-        run: function () { return write(mine, CLOSED); } },
-
-      { name: '남의 팀(' + other + ') 값 쓰기',
-        want: admin ? '허용' : '거부',
-        note: admin ? '관리자는 전 팀을 쓸 수 있다' : '',
-        skip: openM == null,
-        run: function () { return write(other, openM); } },
-
-      { name: '팀원 목록 수정', want: admin ? '허용' : '거부',
+      { n: '월 개폐 상태 읽기', want: true, run: function () { return read('mp_periods?select=m&limit=1'); } },
+      { n: '주차별 OL 읽기 (전 팀)', want: true, run: function () { return read('mp_week?select=m&limit=1'); } },
+      { n: '설정값 읽기', want: true, run: function () { return read('mp_config?select=key&limit=1'); } },
+      { n: openM == null ? '열린 달 없음' : ('열린 달(' + D.moOf(openM) + '월)에 ' + mine + ' 쓰기'),
+        want: true, skip: openM == null, run: function () { return write(openM, mine); } },
+      { n: closedM == null ? '닫힌 달 없음' : ('닫힌 달(' + D.moOf(closedM) + '월)에 ' + mine + ' 쓰기'),
+        want: false, skip: closedM == null, run: function () { return write(closedM, mine); } },
+      { n: finalM == null ? '확정된 달 없음' : ('확정된 달(' + D.moOf(finalM) + '월)에 쓰기'),
+        want: false, skip: finalM == null, run: function () { return write(finalM, mine); } },
+      { n: '남의 팀(' + other + ') 쓰기', want: admin, skip: openM == null,
+        run: function () { return write(openM, other); } },
+      { n: '월간계획 수정', want: admin,
         run: function () {
-          return MpAuth.rest('mp_members', {
-            method: 'POST',
-            headers: { Prefer: 'resolution=merge-duplicates' },
-            body: JSON.stringify({ user_id: p.id, team: p.team, mp_role: p.mpRole })
-          }).then(ok);
+          return MpAuth.rest('mp_plan?on_conflict=m,team,sec,item', {
+            method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify([{ m: openM, team: mine, sec: '매출', item: '__점검', val: 0 }])
+          }).then(function (r) {
+            if (r.ok) MpAuth.rest('mp_plan?m=eq.' + openM + '&item=eq.' + encodeURIComponent('__점검'), { method: 'DELETE' });
+            return r.ok;
+          });
         } }
     ];
 
-    body.innerHTML = checks.map(function (c, i) {
-      return '<tr><td>' + esc(c.name) +
-             (c.note ? '<div class="desc" style="margin-top:2px">' + esc(c.note) + '</div>' : '') +
-             '</td><td class="v">' + c.want +
-             '</td><td class="v" id="ck' + i + '"><span class="pill wait">확인 중</span></td></tr>';
+    $('#tblChk').innerHTML = checks.map(function (c, i) {
+      return '<tr><td>' + esc(c.n) + '</td><td class="n">' + (c.skip ? '—' : (c.want ? '허용' : '거부')) +
+        '</td><td class="n" id="ck' + i + '"><span class="chip">확인 중</span></td></tr>';
     }).join('');
 
     checks.forEach(function (c, i) {
       var cell = $('#ck' + i);
-      if (c.skip) { cell.innerHTML = '<span class="pill wait">해당 없음</span>'; return; }
+      if (c.skip) { cell.innerHTML = '<span class="chip lock">해당 없음</span>'; return; }
       c.run().then(function (allowed) {
-        var want = c.want === '허용';
-        var pass = (allowed === want);
-        cell.innerHTML = '<span class="pill ' + (pass ? 'ok' : 'no') + '">' +
-          (allowed ? '허용됨' : '거부됨') + '</span>';
-      }).catch(function () {
-        cell.innerHTML = '<span class="pill no">오류</span>';
-      });
+        var pass = (allowed === c.want);
+        cell.innerHTML = '<span class="chip ' + (pass ? 'ok' : 'warn') + '">' +
+          (allowed ? '허용됨' : '거부됨') + (pass ? '' : ' ⚠') + '</span>';
+      }).catch(function () { cell.innerHTML = '<span class="chip warn">오류</span>'; });
     });
   }
-
   function read(path) {
-    return MpAuth.rest(path).then(function (r) {
-      if (!r.ok) return false;
-      return r.json().then(function () { return true; });
-    }).catch(function () { return false; });
+    return MpAuth.rest(path).then(function (r) { return r.ok; }).catch(function () { return false; });
   }
-
-  /* 쓰기 점검 — 실제로 한 줄 넣어 본다. 성공하면 바로 지운다. */
-  function write(team, m) {
-    m = (m == null) ? 24320 : m;   // 기본 2026-09
-    var row = { m: m, team: team, sec: '매출', item: '__점검', k: 0, val: 0 };
-    return MpAuth.rest('mp_week', {
-      method: 'POST',
-      headers: { Prefer: 'return=minimal,resolution=merge-duplicates' },
-      body: JSON.stringify(row)
+  function write(m, team) {
+    return MpAuth.rest('mp_week?on_conflict=m,team,sec,item,k', {
+      method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify([{ m: m, team: team, sec: '매출', item: '__점검', k: 0, val: 0 }])
     }).then(function (r) {
-      if (!r.ok) return false;
-      // 넣은 흔적을 남기지 않는다
-      MpAuth.rest('mp_week?m=eq.' + m + '&team=eq.' + encodeURIComponent(team) +
-                  '&sec=eq.' + encodeURIComponent('매출') + '&item=eq.' + encodeURIComponent('__점검'),
-                  { method: 'DELETE' }).catch(function () {});
-      return true;
+      if (r.ok) {
+        MpAuth.rest('mp_week?m=eq.' + m + '&team=eq.' + encodeURIComponent(team) +
+          '&item=eq.' + encodeURIComponent('__점검'), { method: 'DELETE' }).catch(function () {});
+      }
+      return r.ok;
     }).catch(function () { return false; });
   }
 
-  function ok(r) { return r.ok; }
+  /* 창 폭이 바뀌면 SVG 를 다시 그린다 */
+  var rt = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(rt);
+    rt = setTimeout(function () { if (UI.page === 'dash' && UI.month != null) renderDash(); }, 200);
+  });
 })();
 </script>
 
