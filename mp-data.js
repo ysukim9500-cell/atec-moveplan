@@ -103,7 +103,7 @@
     if (!S.erpMeta[m]) return Promise.resolve(false);
     return Promise.all([
       getAll('mp_erp_rev?select=amt,cost,team,pname&m=eq.' + m),
-      getAll('mp_erp_sga?select=amt,cat,mg,team_raw,descr&m=eq.' + m)
+      getAll('mp_erp_sga?select=amt,cat,acct,mg,team_raw,descr&m=eq.' + m)
     ]).then(function (r) { S.erpRev[m] = r[0]; S.erpSga[m] = r[1]; return true; });
   }
 

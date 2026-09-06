@@ -556,3 +556,35 @@ body.ro .ce,body.ro textarea.na{pointer-events:none;background:transparent!impor
 .sdot.ok{color:var(--ok)}
 .sdot.mid{color:var(--amber);font-size:18px;line-height:13px}
 #tblSubmit td.c,#tblSubmit th.c{text-align:center}
+
+/* ============================================================
+   판관비 대사 — v20 구조
+   ============================================================ */
+.card>.hd .toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto}
+.card>.hd .toolbar .thlb{font-size:11px;color:var(--muted);white-space:nowrap}
+.card>.hd .toolbar .wkn{width:64px}
+.btn.ghost.sm{padding:3px 8px}
+
+/* 검산 배너 — 1원이라도 어긋나면 빨강 */
+.vbox{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:13px;
+  padding:9px 13px;border-radius:6px;font-size:11.5px;line-height:1.6}
+.vbox b{font-size:12px}
+.vbox span{color:inherit;opacity:.85}
+.vbox.ok{background:var(--ok-bg);border:1px solid var(--ok-line);color:var(--ok)}
+.vbox.bad{background:#FDEEF2;border:1px solid var(--red-line);color:var(--red-d)}
+
+/* 확인 필요 */
+.bdg.pend{background:var(--amber-bg);border:1px solid var(--amber-line);color:var(--amber)}
+table.t tr.pend td{background:#FFFCF2}
+table.t tr.gone td{color:var(--muted)}
+.q2{font-size:11px;color:var(--muted);margin-top:2px}
+.dsum{display:flex;gap:16px;flex-wrap:wrap;padding:8px 12px;font-size:11.5px;color:var(--muted);
+  border-top:1px solid var(--rule2);background:var(--soft)}
+.dsum b{color:var(--ink2);font-family:var(--num)}
+
+/* 비목별 증감 — 0 을 가운데 둔 좌우 막대 */
+.dvrow{display:grid;grid-template-columns:82px 1fr 74px;align-items:center;gap:9px;margin-bottom:7px}
+.dvnm{font-size:11.5px;color:var(--ink2)}
+.dvv{font-family:var(--num);font-size:11.5px;font-weight:700;text-align:right}
+#tblSgaMatch td{vertical-align:middle}
+#tblSgaMatch .sel{min-width:200px}

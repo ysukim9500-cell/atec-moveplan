@@ -13,10 +13,18 @@
 (function (global) {
   'use strict';
 
-  var D = global.MpData, K = global.MpCalc, U = global.MpUI;
+  var D = global.MpData, K = global.MpCalc, U = global.MpUI, G = global.MpSga;
   var $ = U.$, $$ = U.$$, esc = U.esc, fmt = U.fmt, fmt0 = U.fmt0, dcls = U.dcls, pct = U.pct;
 
-  var S = { m: null, kind: 'sga', unit: 'M', open: {}, upload: false };
+  var S = { m: null, kind: 'sga', unit: 'M', open: {}, upload: false,
+            th: 100,          /* 세부 변동 표시기준 (만원) — v20 기본값 */
+            fold: false,      /* 비목·적요 전체 상세 접기 */
+            matchOpen: false };
+
+  /* 확정된 매칭이 바뀌면 대사 결과를 다시 만들어야 한다 */
+  var MATCH_VER = 0;
+  var MATCH = {};                       /* m|team|cat|side → {mode,to} */
+  var MATCH_READY = null;
 
   function uf(v) {
     if (v == null || isNaN(v)) return '–';
@@ -38,14 +46,124 @@
     flash.t = setTimeout(function () { el.className = 'chip'; el.textContent = '—'; }, 2600);
   }
 
-  /* 적요 정규화 — 월·일자만 다른 같은 건을 한 항목으로 묶는다.
-     화면에는 원문을 보이고, 묶는 데만 쓴다. */
-  function normDesc(s) {
-    return String(s || '')
-      .replace(/\d{4}[-.\/]\d{1,2}[-.\/]\d{1,2}/g, '@일자@')
-      .replace(/\d{1,2}\s*\/\s*\d{1,2}/g, '@일자@')
-      .replace(/\d{1,2}\s*월/g, '@월@')
-      .replace(/\s+/g, ' ').trim();
+
+  /* ==========================================================================
+   * 적요 매칭 확정 — 서버에 둔다
+   * v20 은 브라우저에 저장했다. 그러면 사람마다 다른 숫자를 보게 된다.
+   * ======================================================================== */
+  function mkey(m, team, cat, side) { return m + '|' + team + '|' + cat + '|' + side; }
+  function matchGet(m, team, cat, side) { return MATCH[mkey(m, team, cat, side)] || null; }
+
+  function loadMatch(m) {
+    return MpAuth.rest('mp_desc_match?select=m,team,cat,side,mode,to_key&m=eq.' + m)
+      .then(function (r) { if (!r.ok) throw new Error('x'); return r.json(); })
+      .then(function (rows) {
+        MATCH_READY = true;
+        rows.forEach(function (x) { MATCH[mkey(x.m, x.team, x.cat, x.side)] = { mode: x.mode, to: x.to_key }; });
+        MATCH_VER++;
+      })
+      .catch(function () { MATCH_READY = false; });   /* 표가 아직 없어도 화면은 뜬다 */
+  }
+
+  function setMatch(m, team, cat, side, mode, to) {
+    var me = MpAuth.me() || {};
+    return MpAuth.rest('mp_desc_match?on_conflict=m,team,cat,side', {
+      method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify([{ m: m, team: team, cat: cat, side: side, mode: mode,
+                              to_key: to || null, decided_at: new Date().toISOString(),
+                              decided_by: me.id || null, email: me.email || null }])
+    }).then(function (r) {
+      if (!r.ok) return r.text().then(function (t) { throw new Error(t.slice(0, 160)); });
+      MATCH[mkey(m, team, cat, side)] = { mode: mode, to: to || null };
+      MATCH_VER++;
+    });
+  }
+
+  function clearMatch(m) {
+    return MpAuth.rest('mp_desc_match?m=eq.' + m, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+      .then(function (r) {
+        if (!r.ok) return r.text().then(function (t) { throw new Error(t.slice(0, 160)); });
+        Object.keys(MATCH).forEach(function (k) { if (k.indexOf(m + '|') === 0) delete MATCH[k]; });
+        MATCH_VER++;
+      });
+  }
+
+  /* ---------- ③ 적요 매칭 검토 ---------- */
+  function renderSgaMatch(m, cur, prv, hasPrev) {
+    var list = [];
+    if (hasPrev) {
+      eachGroup(cur, prv, hasPrev, function (t, c, C, P) {
+        rcOf(m, t, c, C, P, hasPrev).review.forEach(function (r) { list.push(r); });
+      });
+      list.sort(function (a, b) {
+        return Math.max(Math.abs(b.prev || 0), Math.abs(b.curr || 0)) -
+               Math.max(Math.abs(a.prev || 0), Math.abs(a.curr || 0));
+      });
+    }
+    $('#sgaMatchN').textContent = list.length;
+    $('#btnSgaMatch').className = 'btn ' + (list.length ? 'red' : 'ghost');
+    var card = $('#sgaMatchCard');
+    card.className = S.matchOpen ? 'card' : 'hide';
+    if (!S.matchOpen) return;
+
+    if (MATCH_READY === false) {
+      $('#tblSgaMatch').innerHTML = '<tbody><tr><td class="txt">매칭 확정을 저장할 표(mp_desc_match)가 아직 없습니다. ' +
+        'db/003_desc_match.sql 을 실행하면 확정한 결과가 모두에게 남습니다.</td></tr></tbody>';
+      return;
+    }
+    if (!list.length) {
+      $('#tblSgaMatch').innerHTML = '<tbody><tr><td class="txt q">' +
+        (hasPrev ? '확인이 필요한 적요가 없습니다.' : '전월 확정본이 없어 매칭할 대상이 없습니다.') + '</td></tr></tbody>';
+      return;
+    }
+    var h = '<thead><tr><th style="width:110px">팀 · 비목</th><th>전월 적요</th><th>당월 후보</th>' +
+      '<th class="n" style="width:88px">전월</th><th class="n" style="width:88px">당월</th>' +
+      '<th style="width:210px">결정</th></tr></thead><tbody>';
+    list.slice(0, 200).forEach(function (r, i) {
+      var pv = r.prevDesc ? G.prettyDesc(r.prevDesc, r.prevRaw) : '—';
+      var opts = r.cands.map(function (c, j) {
+        return '<option value="' + esc(c.key) + '">' + esc(G.prettyDesc(c.nd, c.raw)) +
+               ' (' + Math.round(c.s * 100) + '%)</option>';
+      }).join('');
+      h += '<tr' + (r.conflict ? ' class="pend"' : '') + '><td class="q">' + esc(D.teamName(r.team)) + '<br>' + esc(r.cat) + '</td>' +
+        '<td class="txt">' + esc(pv) + (r.conflict ? ' <span class="bdg pend">확정 상대 없음</span>' : '') + '</td>' +
+        '<td class="txt">' + (r.cands.length
+            ? '<select class="sel" data-c="' + i + '">' + opts + '</select>'
+            : (r.currDesc ? esc(G.prettyDesc(r.currDesc, r.currRaw)) : '<span class="q">후보 없음</span>')) + '</td>' +
+        '<td class="n">' + (r.prev == null ? '–' : uf(r.prev / 1e6)) + '</td>' +
+        '<td class="n cur">' + (r.curr == null ? '–' : uf(r.curr / 1e6)) + '</td>' +
+        '<td><button class="btn sm" data-mg="' + i + '">같은 항목</button> ' +
+            '<button class="btn sm" data-kp="' + i + '">다른 항목</button></td></tr>';
+    });
+    $('#tblSgaMatch').innerHTML = h + '</tbody>';
+
+    $$('#tblSgaMatch button[data-mg]').forEach(function (b) {
+      b.onclick = function () {
+        var r = list[+this.dataset.mg];
+        var sel = $('#tblSgaMatch select[data-c="' + this.dataset.mg + '"]');
+        var to = sel ? sel.value : r.currKey;
+        if (!to) { flash('당월 후보가 없습니다', true); return; }
+        decide(m, r, 'merge', to);
+      };
+    });
+    $$('#tblSgaMatch button[data-kp]').forEach(function (b) {
+      b.onclick = function () {
+        var r = list[+this.dataset.kp];
+        decide(m, r, 'keep', null);
+      };
+    });
+  }
+
+  function decide(m, r, mode, to) {
+    var side = r.prevKey ? r.prevKey : ('CURR:' + r.currKey);
+    setMatch(m, r.team, r.cat, side, mode, to)
+      .then(function () {
+        return D.audit('적요 매칭 확정', { m: m, team: r.team, ref: r.cat,
+          before: G.prettyDesc(r.prevDesc || r.currDesc, r.prevRaw || r.currRaw).slice(0, 60),
+          after: mode === 'merge' ? '같은 항목' : '다른 항목' });
+      })
+      .then(function () { flash('확정했습니다'); render(); })
+      .catch(function (e) { flash(e.message, true); });
   }
 
   /* ==========================================================================
@@ -56,7 +174,7 @@
 
     U.tabs($('#erpMonth'), monthTabs(), m, function (v) {
       S.m = v; S.open = {};
-      D.loadErp(v).then(render).catch(render);
+      Promise.all([D.loadErp(v), D.loadErp(v - 1), loadMatch(v)]).then(render).catch(render);
     });
     U.tabs($('#erpUnit'), [{ id: 'M', label: '백만원' }, { id: 'W', label: '원' }],
       S.unit, function (v) { S.unit = v; render(); });
@@ -236,84 +354,306 @@
       }).join('') + '</div>';
   }
 
-  /* ---------- 판관비 명세 ---------- */
-  function byTeamCat(m) {
+  /* ==========================================================================
+   * 판관비 — v20 포털의 구조를 그대로 따른다
+   *
+   *   ① 검산 배너      원본 총액 = 분석 반영 총액. 1원이라도 다르면 부적합
+   *   ② 팀별 비교      전월 대비 · 세부 변동 표시기준(만원)
+   *   ③ 적요 매칭 검토 «확신할 수 없는» 짝은 사람이 정한다
+   *   ④ 비목·적요 전체 상세
+   *   ⑤ 비목별 증감 · 비목별 비교(최종 OL 대비)
+   * ======================================================================== */
+
+  /** ERP 판관비 원장을 팀 × 비목 × 정규화적요로 접는다. 금액은 원 단위 그대로. */
+  function foldSga(m) {
     var out = {};
     (D.S.erpSga[m] || []).forEach(function (r) {
       var org6 = D.S.orgMap[r.mg] || D.S.orgMap[r.team_raw] || null;
       var t = org6 ? (D.ORG2TEAM[org6] || null) : null;
-      var key = t || '미배분';
-      var o = out[key] || (out[key] = { total: 0, cat: {}, desc: {} });
-      var a = Number(r.amt) / 1e6;
-      o.total += a;
-      var c = r.cat || '미분류';
-      o.cat[c] = (o.cat[c] || 0) + a;
-      var nd = normDesc(r.descr) || ('(' + (r.acct || c) + ')');
-      var d = o.desc[nd] || (o.desc[nd] = { amt: 0, raw: r.descr || nd, cat: c });
-      d.amt += a;
+      var team = t || '미배분';
+      var cat = r.cat || '미분류';
+      var nd = G.normDesc(r.descr);
+      var key = G.matchKeyOf(r.descr);
+      var T = out[team] || (out[team] = {});
+      var C = T[cat] || (T[cat] = { total: 0, desc: {} });
+      var o = C.desc[key] || (C.desc[key] = { nd: nd, raw: r.descr || nd, amt: 0, n: 0, acct: {} });
+      var amt = Number(r.amt) || 0;
+      o.amt += amt; o.n++;
+      if (r.acct) o.acct[r.acct] = (o.acct[r.acct] || 0) + amt;
+      C.total += amt;
     });
     return out;
   }
 
+  /* 대사 결과는 월·확정버전마다 다시 만든다 */
+  var RC = {}, RC_TAG = '';
+  function rcOf(m, team, cat, cur, prv, hasPrev) {
+    var tag = m + '|' + MATCH_VER;
+    if (tag !== RC_TAG) { RC = {}; RC_TAG = tag; }
+    var ck = team + '||' + cat + '||' + (hasPrev ? 1 : 0);
+    if (RC[ck]) return RC[ck];
+    var dec = function (side) { return matchGet(m, team, cat, side); };
+    RC[ck] = G.reconcileGroup(team, cat, cur, prv, hasPrev, dec);
+    return RC[ck];
+  }
+
+  function eachGroup(cur, prv, hasPrev, fn) {
+    var teams = {};
+    Object.keys(cur).forEach(function (t) { teams[t] = 1; });
+    if (hasPrev) Object.keys(prv).forEach(function (t) { teams[t] = 1; });
+    Object.keys(teams).forEach(function (t) {
+      var C = cur[t] || {}, P = hasPrev ? (prv[t] || {}) : {}, cats = {};
+      Object.keys(C).forEach(function (c) { cats[c] = 1; });
+      if (hasPrev) Object.keys(P).forEach(function (c) { cats[c] = 1; });
+      Object.keys(cats).forEach(function (c) { fn(t, c, C[c], P[c]); });
+    });
+  }
+
   function renderSga(m) {
     var ag = D.erpAgg(m);
-    var prevM = m - 1, hasPrev = !!D.S.erpMeta[prevM] && !!D.S.erpSga[prevM];
-    var tc = byTeamCat(m), pc = hasPrev ? byTeamCat(prevM) : null;
-    var keys = Object.keys(tc).sort(function (a, b) { return tc[b].total - tc[a].total; });
+    var prevM = m - 1;
+    var hasPrev = !!D.S.erpMeta[prevM] && !!D.S.erpSga[prevM];
+    var cur = foldSga(m), prv = hasPrev ? foldSga(prevM) : {};
 
     $('#sgaPrev').innerHTML = hasPrev
       ? '전월(' + D.moOf(prevM) + '월) 확정본과 비교합니다. 규모 막대는 <b>증감률</b> 크기입니다 — 금액이 아닙니다.'
       : '<b>' + D.moOf(prevM) + '월 확정본이 없어</b> 전월 비교는 비어 있습니다. 당월 금액과 최종 OL 대비만 나옵니다.';
 
-    /* 규모 막대는 증감률 크기다. 금액이 아니다 —
-       팀마다 판관비 규모가 달라서 금액으로 그리면 큰 팀만 눈에 띈다. */
+    renderSgaValid(m, cur, prv, hasPrev);
+    renderSgaTeam(m, cur, prv, hasPrev);
+    renderSgaMatch(m, cur, prv, hasPrev);
+    renderSgaDetail(m, cur, prv, hasPrev);
+    renderSgaCat(m, ag, cur, prv, hasPrev);
+  }
+
+  /* ---------- ① 검산 ---------- */
+  function renderSgaValid(m, cur, prv, hasPrev) {
+    var v = { prevRaw: 0, currRaw: 0, prevAcc: 0, currAcc: 0, groups: 0, review: 0, bad: 0 };
+    eachGroup(cur, prv, hasPrev, function (t, c, C, P) {
+      var rc = rcOf(m, t, c, C, P, hasPrev);
+      v.groups++; v.review += rc.review.length;
+      var x = rc.validation;
+      v.prevRaw += x.prevRaw; v.currRaw += x.currRaw;
+      v.prevAcc += x.prevAcc; v.currAcc += x.currAcc;
+      if (!x.ok) v.bad++;
+    });
+    var ok = Math.abs(v.currRaw - v.currAcc) < 1 && (!hasPrev || Math.abs(v.prevRaw - v.prevAcc) < 1);
+    var cd = v.currRaw - v.currAcc, pd = v.prevRaw - v.prevAcc;
+    var h = '<div class="vbox ' + (ok ? 'ok' : 'bad') + '">' +
+      '<b>' + (ok ? '검산 통과' : '검산 부적합 — 완료 처리 보류') + '</b>' +
+      '<span>당월 원본 ' + fmt0(Math.round(v.currRaw)) + '원 · 분석 반영 ' + fmt0(Math.round(v.currAcc)) + '원' +
+      (Math.abs(cd) >= 1 ? ' · 차이 ' + fmt0(Math.round(cd)) + '원' : '') + '</span>';
+    if (hasPrev) h += '<span>전월 원본 ' + fmt0(Math.round(v.prevRaw)) + '원 · 분석 반영 ' + fmt0(Math.round(v.prevAcc)) + '원' +
+      (Math.abs(pd) >= 1 ? ' · 차이 ' + fmt0(Math.round(pd)) + '원' : '') + '</span>';
+    h += '<span>대사 그룹 ' + fmt0(v.groups) + '개' + (hasPrev ? ' · 확인 필요 ' + fmt0(v.review) + '건' : '') + '</span>';
+    $('#sgaValid').innerHTML = h + '</div>';
+    return v;
+  }
+
+  /* ---------- ② 팀별 비교 ---------- */
+  function renderSgaTeam(m, cur, prv, hasPrev) {
+    var teams = {};
+    Object.keys(cur).forEach(function (t) { teams[t] = 1; });
+    if (hasPrev) Object.keys(prv).forEach(function (t) { teams[t] = 1; });
+    var keys = Object.keys(teams).sort(function (a, b) { return totOf(cur[b]) - totOf(cur[a]); });
+
+    /* 규모 막대는 증감률 크기다 — 팀마다 규모가 달라 금액으로는 큰 팀만 보인다 */
     var maxRate = 0;
     keys.forEach(function (t) {
-      if (!pc || !pc[t] || !pc[t].total) return;
-      var r = Math.abs((tc[t].total - pc[t].total) / pc[t].total);
+      var p = totOf(prv[t]);
+      if (!hasPrev || !p) return;
+      var r = Math.abs((totOf(cur[t]) - p) / p);
       if (r > maxRate) maxRate = r;
     });
 
+    var thMan = S.th;
     var h = '<thead><tr><th style="width:170px">팀</th>' +
-      '<th class="n" style="width:96px">' + (hasPrev ? D.moOf(prevM) + '월' : '전월') + '</th>' +
+      '<th class="n" style="width:96px">' + (hasPrev ? D.moOf(m - 1) + '월' : '전월') + '</th>' +
       '<th class="n cur" style="width:96px">' + D.moOf(m) + '월</th>' +
       '<th class="n" style="width:92px">증감액</th><th class="n" style="width:78px">증감률</th>' +
-      '<th class="c" style="width:112px">규모</th><th>' +
-      (hasPrev ? '주요 증감 원인' : '금액이 큰 항목 (당월)') + '</th></tr></thead><tbody>';
+      '<th class="c" style="width:112px">규모</th>' +
+      '<th>' + (hasPrev ? '주요 증감 원인' : '금액이 큰 항목 (당월)') + '</th></tr></thead><tbody>';
     var tot = 0, ptot = 0;
     keys.forEach(function (t) {
-      var c = tc[t].total, p = pc && pc[t] ? pc[t].total : null;
+      var c = totOf(cur[t]), p = hasPrev ? totOf(prv[t]) : null;
       var d = p == null ? null : c - p;
       var rate = (p == null || !p) ? null : d / Math.abs(p);
       tot += c; if (p != null) ptot += p;
+
+      /* 그 팀의 모든 비목을 합쳐 상위 항목을 뽑는다 */
+      var items = [];
+      var C = cur[t] || {}, P = hasPrev ? (prv[t] || {}) : {}, cats = {};
+      Object.keys(C).forEach(function (x) { cats[x] = 1; });
+      if (hasPrev) Object.keys(P).forEach(function (x) { cats[x] = 1; });
+      Object.keys(cats).forEach(function (c2) {
+        G.itemsOf(rcOf(m, t, c2, C[c2], P[c2], hasPrev), hasPrev).forEach(function (r) { items.push(r); });
+      });
+      var fl = G.filterItems(items, hasPrev, thMan);
+
       h += '<tr class="trow" data-t="' + esc(t) + '">' +
         '<td class="tname"><span class="cv">' + (S.open[t] ? '▾' : '▸') + '</span>' +
         esc(t === '미배분' ? '미배분 (조직 매핑 없음)' : D.teamName(t)) + '</td>' +
-        '<td class="n">' + (p == null ? '<span class="zero">–</span>' : uf(p)) + '</td>' +
-        '<td class="n cur"><b>' + uf(c) + '</b></td>' +
-        '<td class="n ' + dcls(d) + '">' + us(d) + '</td>' +
+        '<td class="n">' + (p == null ? '<span class="zero">–</span>' : uf(p / 1e6)) + '</td>' +
+        '<td class="n cur"><b>' + uf(c / 1e6) + '</b></td>' +
+        '<td class="n ' + dcls(d) + '">' + (d == null ? '–' : us(d / 1e6)) + '</td>' +
         '<td class="n ' + dcls(d) + '">' + (rate == null ? '–' : ((rate > 0 ? '+' : '−') + Math.abs(rate * 100).toFixed(1) + '%')) + '</td>' +
         '<td class="c">' + rateBar(rate, maxRate) + '</td>' +
-        '<td class="cz">' + causes(tc[t], pc && pc[t], 2, hasPrev) + '</td></tr>';
-      if (S.open[t]) h += panel(tc[t], pc && pc[t], hasPrev);
+        '<td class="cz">' + causeCell(fl, hasPrev, 2) + '</td></tr>';
+      if (S.open[t]) h += teamPanel(t, cur[t], fl, hasPrev);
     });
     var dt = hasPrev ? (tot - ptot) : null;
-    h += '<tr class="grand"><td>합 계</td><td class="n">' + (hasPrev ? uf(ptot) : '–') + '</td>' +
-      '<td class="n cur"><b>' + uf(tot) + '</b></td>' +
-      '<td class="n ' + dcls(dt) + '">' + us(dt) + '</td><td class="n"></td><td></td><td></td></tr>';
+    h += '<tr class="grand"><td>합 계</td><td class="n">' + (hasPrev ? uf(ptot / 1e6) : '–') + '</td>' +
+      '<td class="n cur"><b>' + uf(tot / 1e6) + '</b></td>' +
+      '<td class="n ' + dcls(dt) + '">' + (dt == null ? '–' : us(dt / 1e6)) + '</td>' +
+      '<td class="n"></td><td></td><td></td></tr>';
     $('#tblSgaTeam').innerHTML = h + '</tbody>';
 
     $$('#tblSgaTeam tr.trow').forEach(function (tr) {
-      tr.onclick = function () { var t = this.dataset.t; S.open[t] = !S.open[t]; renderSga(m); };
+      tr.onclick = function () { var t = this.dataset.t; S.open[t] = !S.open[t]; render(); };
     });
+    $('#sgaThIn').value = thMan;
+  }
 
-    /* 비목별 — 최종 OL 과 비교 */
-    var ch = '<thead><tr><th>비목</th><th class="n" style="width:100px">최종 OL</th>' +
-      '<th class="n cur" style="width:100px">확정</th><th class="n" style="width:96px">차이</th>' +
-      '<th class="n" style="width:78px">집행률</th><th class="c" style="width:140px">금액 비중</th></tr></thead><tbody>';
+  function totOf(T) {
+    var s = 0;
+    if (!T) return 0;
+    Object.keys(T).forEach(function (c) { s += T[c].total; });
+    return s;
+  }
+
+  /** 상위 원인 — 확인 필요를 먼저, 그다음 변동액 큰 순 (itemsOf 가 이미 그 순서다) */
+  function causeCell(fl, hasPrev, n) {
+    var top = fl.rows.slice(0, n || 2);
+    if (!top.length) return '<span class="q">—</span>';
+    return top.map(function (x) {
+      var nm = G.prettyDesc(x.desc, x.raw);
+      if (nm.length > 26) nm = nm.slice(0, 26) + '…';
+      var val = hasPrev ? us(x.v / 1e6) : uf(x.c / 1e6);
+      return '<span class="czi" title="' + esc(G.prettyDesc(x.desc, x.raw)) + '">' +
+        '<b' + (hasPrev ? ' class="' + dcls(x.v) + '"' : '') + '>' + val + '</b> ' + esc(nm) + tagOf(x) + '</span>';
+    }).join('') + (fl.rows.length > top.length ? ' <span class="q">외 ' + (fl.rows.length - top.length) + '건</span>' : '');
+  }
+
+  function tagOf(x) {
+    if (x.pend) return ' <span class="bdg pend">확인 필요</span>';
+    if (x.neu) return ' <span class="bdg">신규</span>';
+    if (x.gone) return ' <span class="bdg">당월 없음</span>';
+    if (x.merged) return ' <span class="bdg">합치기 확정</span>';
+    return '';
+  }
+
+  function teamPanel(t, T, fl, hasPrev) {
+    var cats = Object.keys(T || {}).sort(function (a, b) { return T[b].total - T[a].total; });
+    var chips = cats.map(function (c) {
+      return '<span class="chip">' + esc(c) + ' <b>' + uf(T[c].total / 1e6) + '</b></span>';
+    }).join(' ');
+    return '<tr class="prow"><td colspan="7"><div class="pcell">' +
+      '<div class="pttl">비목별</div><div class="pchips">' + chips + '</div>' +
+      '<div class="pttl">적요별 상위 ' + Math.min(15, fl.rows.length) + '건' +
+      (fl.hidN ? ' <span class="q">· 기준 미만 ' + fl.hidN + '건 숨김</span>' : '') + '</div>' +
+      descTable(fl, hasPrev, 15) + '</div></td></tr>';
+  }
+
+  /* ---------- ④ 적요 상세표 ---------- */
+  function descTable(fl, hasPrev, cap) {
+    var list = fl.rows;
+    if (!list.length) {
+      return '<div class="note info" style="margin:0">표시 기준 이상의 적요가 없습니다.' +
+        (fl.hidN ? ' — 기준 미만 ' + fmt0(fl.hidN) + '건(합계 ' + us(fl.hidSum / 1e6) +
+          ') 숨김. 기준을 낮추거나 <b>전체 보기</b>를 누르세요.' : '') + '</div>';
+    }
+    cap = cap || 300;
+    var show = list.slice(0, cap), sc = 0, sp = 0;
+    var h = '<table class="t sub"><thead><tr><th>적요</th><th style="width:150px">계정명</th>' +
+      '<th class="n" style="width:92px">전월</th><th class="n" style="width:92px">당월</th>' +
+      '<th class="n" style="width:92px">증감</th><th class="c" style="width:92px">구분</th></tr></thead><tbody>';
+    show.forEach(function (r) {
+      sc += r.c; sp += (r.p || 0);
+      var lbl;
+      if (r.pend) {
+        if (r.prevDesc && r.currDesc)
+          lbl = '<div>' + esc(G.prettyDesc(r.prevDesc, r.prevRaw)) + '</div>' +
+                '<div class="q2">↳ 당월 후보 : ' + esc(G.prettyDesc(r.currDesc, r.currRaw)) + '</div>';
+        else if (r.prevDesc)
+          lbl = '<div>' + esc(G.prettyDesc(r.prevDesc, r.prevRaw)) + '</div><div class="q2">↳ 당월 유사 후보 다수</div>';
+        else
+          lbl = '<div>' + esc(G.prettyDesc(r.currDesc, r.currRaw)) + '</div><div class="q2">↳ 전월 유사 후보 다수</div>';
+      } else {
+        lbl = descHtml(r);
+      }
+      h += '<tr class="' + (r.pend ? 'pend' : (r.gone ? 'gone' : '')) + '"><td class="txt">' + lbl + '</td>' +
+        '<td class="txt q">' + esc(G.acctLabel(r.acct)) + '</td>' +
+        '<td class="n">' + (hasPrev ? uf(r.p / 1e6) : '<span class="zero">–</span>') + '</td>' +
+        '<td class="n cur"><b>' + uf(r.c / 1e6) + '</b></td>' +
+        '<td class="n ' + (hasPrev ? dcls(r.v) : 'flat') + '">' + (hasPrev ? us(r.v / 1e6) : '–') + '</td>' +
+        '<td class="c">' + (tagOf(r) || '<span class="q">기존</span>') + '</td></tr>';
+    });
+    h += '</tbody></table><div class="dsum"><span>표시 ' + fmt0(show.length) + '건 · 전월 <b>' +
+      (hasPrev ? uf(sp / 1e6) : '–') + '</b> → 당월 <b>' + uf(sc / 1e6) + '</b>' +
+      (hasPrev ? ' · 증감 <b>' + us((sc - sp) / 1e6) + '</b>' : '') + '</span>';
+    if (fl.hidN) h += '<span>기준 미만 숨김 ' + fmt0(fl.hidN) + '건 · ' + us(fl.hidSum / 1e6) + '</span>';
+    if (list.length > cap) h += '<span>외 ' + fmt0(list.length - cap) + '건 — 변동액 큰 순 ' + cap + '건까지</span>';
+    return h + '</div>';
+  }
+
+  /** 같은 카테고리는 공통 앞부분을 굵게 */
+  function descHtml(o) {
+    var t = G.prettyDesc(o.desc, o.raw), c = G.descCat(t);
+    if (c && c !== t && t.indexOf(c) === 0) return '<b>' + esc(c) + '</b>' + esc(t.slice(c.length));
+    return esc(t);
+  }
+
+  function renderSgaDetail(m, cur, prv, hasPrev) {
+    var card = $('#sgaDetailCard');
+    $('#btnSgaFold').textContent = S.fold ? '펼치기' : '접기';
+    if (S.fold) { $('#sgaDetail').innerHTML = ''; return; }
+    var items = [];
+    eachGroup(cur, prv, hasPrev, function (t, c, C, P) {
+      G.itemsOf(rcOf(m, t, c, C, P, hasPrev), hasPrev).forEach(function (r) {
+        r.team = t; r.cat = c; items.push(r);
+      });
+    });
+    var fl = G.filterItems(items, hasPrev, S.th);
+    $('#sgaDetailNote').innerHTML = '전 팀 · 전 비목을 한 표로 봅니다 · 세부 변동 표시기준 <b>' +
+      S.th + '만원</b> 이상' + (fl.hidN ? ' · 기준 미만 ' + fl.hidN + '건 숨김' : '');
+    $('#sgaDetail').innerHTML = descTable(fl, hasPrev, 300);
+  }
+
+  /* ---------- ⑤ 비목별 ---------- */
+  function renderSgaCat(m, ag, cur, prv, hasPrev) {
     var cats = D.ITEMS['판관비'].slice();
     Object.keys(ag.sgaCat).forEach(function (c) { if (cats.indexOf(c) < 0) cats.push(c); });
-    var maxA = 0; cats.forEach(function (c) { maxA = Math.max(maxA, ag.sgaCat[c] || 0); });
+
+    var cSum = {}, pSum = {};
+    Object.keys(cur).forEach(function (t) {
+      Object.keys(cur[t]).forEach(function (c) { cSum[c] = (cSum[c] || 0) + cur[t][c].total; });
+    });
+    if (hasPrev) Object.keys(prv).forEach(function (t) {
+      Object.keys(prv[t]).forEach(function (c) { pSum[c] = (pSum[c] || 0) + prv[t][c].total; });
+    });
+
+    /* 비목별 증감 — 0 을 가운데 두고 좌우로 */
+    var maxAbs = 0;
+    cats.forEach(function (c) { maxAbs = Math.max(maxAbs, Math.abs((cSum[c] || 0) - (pSum[c] || 0))); });
+    var bh = '';
+    if (hasPrev) {
+      cats.forEach(function (c) {
+        var d = (cSum[c] || 0) - (pSum[c] || 0);
+        bh += '<div class="dvrow"><div class="dvnm">' + esc(c) + '</div>' +
+          '<div class="dvbar">' + rateBar(maxAbs ? d / maxAbs : 0, 1) + '</div>' +
+          '<div class="dvv ' + dcls(d) + '">' + us(d / 1e6) + '</div></div>';
+      });
+    } else {
+      bh = '<div class="note info" style="margin:0">전월 확정본이 없어 증감을 그릴 수 없습니다.</div>';
+    }
+    $('#chSga').innerHTML = bh;
+    $('#sgaBarNote').textContent = hasPrev ? D.moOf(m - 1) + '월 → ' + D.moOf(m) + '월' : '전월 없음';
+
+    var maxA = 0;
+    cats.forEach(function (c) { maxA = Math.max(maxA, ag.sgaCat[c] || 0); });
+    var ch = '<thead><tr><th>비목</th><th class="n" style="width:100px">최종 OL</th>' +
+      '<th class="n cur" style="width:100px">확정</th><th class="n" style="width:96px">차이</th>' +
+      '<th class="n" style="width:78px">집행률</th><th class="c" style="width:120px">금액 비중</th></tr></thead><tbody>';
     cats.forEach(function (cat) {
       var a = ag.sgaCat[cat] || 0;
       var known = D.ITEMS['판관비'].indexOf(cat) >= 0;
@@ -326,11 +666,11 @@
         '<td class="c"><span class="mbar one"><i style="width:' +
           (maxA ? (a / maxA * 100).toFixed(1) : 0) + '%"></i></span></td></tr>';
     });
-    ch += '<tr class="grand"><td>합 계</td><td class="n">' + uf(K.OL(m, D.TOTAL, '판관비', '합계')) + '</td>' +
+    var olT = K.OL(m, D.TOTAL, '판관비', '합계');
+    ch += '<tr class="grand"><td>합 계</td><td class="n">' + uf(olT) + '</td>' +
       '<td class="n cur"><b>' + uf(ag.sga) + '</b></td>' +
-      '<td class="n ' + dcls(ag.sga - (K.OL(m, D.TOTAL, '판관비', '합계') || 0)) + '">' +
-        us(K.OL(m, D.TOTAL, '판관비', '합계') == null ? null : ag.sga - K.OL(m, D.TOTAL, '판관비', '합계')) + '</td>' +
-      '<td class="n"></td><td></td></tr>';
+      '<td class="n ' + dcls(olT == null ? null : ag.sga - olT) + '">' +
+        us(olT == null ? null : ag.sga - olT) + '</td><td class="n"></td><td></td></tr>';
     $('#tblSgaCat').innerHTML = ch + '</tbody>';
   }
 
@@ -344,73 +684,6 @@
     return '<span class="mbar"><i class="' + cls + '" style="' + st + '"></i></span>';
   }
 
-  /**
-   * 주요 증감 원인.
-   * 증감액 절대값으로 뽑은 뒤 신규 → 기존 → 소멸 순으로 배열한다.
-   * 그룹 순으로 정렬해 앞에서 자르면 소멸(당월 0) 항목이 영영 올라오지 못한다.
-   */
-  function topCauses(cur, prv, n) {
-    var names = {}, raw = {}, cat = {};
-    if (cur) Object.keys(cur.desc).forEach(function (d) { names[d] = 1; raw[d] = cur.desc[d].raw; cat[d] = cur.desc[d].cat; });
-    if (prv) Object.keys(prv.desc).forEach(function (d) {
-      names[d] = 1; raw[d] = raw[d] || prv.desc[d].raw; cat[d] = cat[d] || prv.desc[d].cat;
-    });
-    var arr = Object.keys(names).map(function (d) {
-      var c = cur && cur.desc[d] ? cur.desc[d].amt : 0;
-      var p = prv ? (prv.desc[d] ? prv.desc[d].amt : 0) : null;
-      return { d: d, raw: raw[d], cat: cat[d], c: c, p: p, v: prv ? (c - p) : c,
-               isNew: !!prv && p === 0 && c !== 0, gone: !!prv && c === 0 && p !== 0 };
-    }).filter(function (r) { return Math.abs(r.v) >= 0.0005; });
-
-    arr.sort(function (a, b) { return Math.abs(b.v) - Math.abs(a.v); });
-    var top = arr.slice(0, n || 3);
-    var rank = function (r) { return r.isNew ? 0 : (r.gone ? 2 : 1); };
-    top.sort(function (a, b) { return rank(a) - rank(b) || Math.abs(b.v) - Math.abs(a.v); });
-    return { top: top, more: Math.max(0, arr.length - top.length) };
-  }
-
-  function causes(cur, prv, n, hasPrev) {
-    var r = topCauses(cur, prv, n);
-    if (!r.top.length) return '<span class="q">—</span>';
-    return r.top.map(function (x) {
-      var nm = x.raw || x.d;
-      if (nm.length > 26) nm = nm.slice(0, 26) + '…';
-      /* 전월이 없으면 부호를 붙이지 않는다 — 증감이 아니라 당월 금액이다 */
-      return '<span class="czi" title="' + esc(x.raw || x.d) + '"><b' + (hasPrev ? ' class="' + dcls(x.v) + '"' : '') + '>' +
-        (hasPrev ? us(x.v) : uf(x.c)) + '</b> ' +
-        esc(nm) + (x.isNew ? ' <span class="bdg">신규</span>' : x.gone ? ' <span class="bdg">당월 없음</span>' : '') + '</span>';
-    }).join('') + (r.more ? ' <span class="q">외 ' + r.more + '건</span>' : '');
-  }
-
-  /* 팀 펼침 — 비목별 요약 + 적요 상세 */
-  function panel(cur, prv, hasPrev) {
-    var cats = Object.keys(cur.cat).sort(function (a, b) { return cur.cat[b] - cur.cat[a]; });
-    var chips = cats.map(function (c) {
-      var d = prv ? (cur.cat[c] - (prv.cat[c] || 0)) : null;
-      return '<span class="chip">' + esc(c) + ' <b>' + uf(cur.cat[c]) + '</b>' +
-        (d == null ? '' : ' <span class="' + dcls(d) + '">' + us(d) + '</span>') + '</span>';
-    }).join(' ');
-
-    var r = topCauses(cur, prv, 15);
-    var rows = r.top.map(function (x) {
-      return '<tr><td class="txt">' + esc(x.raw || x.d) +
-        (x.isNew ? ' <span class="bdg">신규</span>' : x.gone ? ' <span class="bdg">당월 없음</span>' : '') + '</td>' +
-        '<td class="q">' + esc(x.cat || '') + '</td>' +
-        (hasPrev ? '<td class="n">' + (x.p == null ? '<span class="zero">–</span>' : uf(x.p)) + '</td>' : '') +
-        '<td class="n cur"><b>' + uf(x.c) + '</b></td>' +
-        (hasPrev ? '<td class="n ' + dcls(x.v) + '">' + us(x.v) + '</td>' : '') + '</tr>';
-    }).join('');
-
-    return '<tr class="prow"><td colspan="7"><div class="pcell">' +
-      '<div class="pttl">비목별</div><div class="pchips">' + chips + '</div>' +
-      '<div class="pttl">적요별 상위 ' + r.top.length + '건' + (r.more ? ' (외 ' + r.more + '건)' : '') + '</div>' +
-      '<table class="t sub"><thead><tr><th>적요</th><th style="width:92px">비목</th>' +
-      (hasPrev ? '<th class="n" style="width:92px">전월</th>' : '') +
-      '<th class="n" style="width:92px">당월</th>' +
-      (hasPrev ? '<th class="n" style="width:92px">증감</th>' : '') +
-      '</tr></thead><tbody>' + rows + '</tbody></table>' +
-      '</div></td></tr>';
-  }
 
   /* ---------- 매출 명세 ---------- */
   function renderRev(m) {
@@ -730,6 +1003,21 @@
     if (bindUpload.done) return;
     bindUpload.done = true;
     $('#btnErpUp').onclick = function () { S.upload = !S.upload; render(); };
+    $('#btnSgaTh').onclick = function () {
+      var v = parseFloat($('#sgaThIn').value);
+      if (!(v >= 0)) { flash('0 이상 숫자를 넣어 주세요', true); return; }
+      S.th = v; render();
+    };
+    $('#sgaThIn').onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); $('#btnSgaTh').click(); } };
+    $('#btnSgaThAll').onclick = function () { S.th = 0; render(); flash('증감이 있는 상세를 전부 표시합니다'); };
+    $('#btnSgaMatch').onclick = function () { S.matchOpen = !S.matchOpen; render(); };
+    $('#btnSgaMatchClose').onclick = function () { S.matchOpen = false; render(); };
+    $('#btnSgaMatchReset').onclick = function () {
+      if (!window.confirm(D.moOf(S.m) + '월의 적요 매칭 확정 이력을 모두 지웁니다.\n다시 확인 필요 상태로 돌아갑니다.')) return;
+      clearMatch(S.m).then(function () { flash('확정 이력을 지웠습니다'); render(); })
+        .catch(function (e) { flash(e.message, true); });
+    };
+    $('#btnSgaFold').onclick = function () { S.fold = !S.fold; render(); };
     $('#btnErpAnalyze').onclick = analyze;
     $('#btnErpSave').onclick = save;
   }
@@ -741,7 +1029,8 @@
       var months = D.erpMonths();
       if (m != null && D.S.erpMeta[m]) S.m = m;
       else if (S.m == null) S.m = months.length ? months[months.length - 1] : (m || D.mOf(2026, 7));
-      D.loadErp(S.m).then(render).catch(render);
+      /* 전월도 같이 읽어야 비교가 된다 */
+      Promise.all([D.loadErp(S.m), D.loadErp(S.m - 1), loadMatch(S.m)]).then(render).catch(render);
     },
     render: render
   };

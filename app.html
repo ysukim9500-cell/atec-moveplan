@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ATEC 이동계획</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20260911a">
+<link rel="stylesheet" href="styles.css?v=20260911c">
 </head>
 <body>
 
@@ -241,16 +241,52 @@
           <!-- 판관비 명세 -->
           <div id="erpSga" class="hide">
             <div class="sec-title"><h2>판관비 명세</h2><span id="sgaPrev"></span></div>
+            <div id="sgaValid"></div>
+
             <div class="card"><div class="hd"><div><h3>팀별 비교</h3>
-              <div class="desc">행을 누르면 비목과 적요가 펼쳐집니다.
-                증감 원인은 금액이 큰 순으로 뽑아 <b>신규 → 기존 → 소멸</b> 순으로 놓았습니다.</div></div></div>
+              <div class="desc">행을 누르면 비목과 적요가 펼쳐집니다. 월·일자만 다른 적요는 자동으로 묶고,
+                <b>같은 항목이라고 확신할 수 없는 것은 «확인 필요»</b>로 세워 둡니다 —
+                신규나 당월없음으로 임의 처리하지 않습니다.</div></div>
+              <div class="toolbar">
+                <span class="thlb">세부 변동 표시기준</span>
+                <input type="number" id="sgaThIn" min="0" step="10" class="wkn">
+                <span class="thlb">만원 이상</span>
+                <button class="btn sm" id="btnSgaTh">적용</button>
+                <button class="btn sm ghost" id="btnSgaThAll">전체 보기</button>
+                <button class="btn sm ghost" id="btnSgaMatch">매칭 확인 필요 <b id="sgaMatchN">0</b></button>
+              </div></div>
               <div class="bd" style="padding:0">
                 <div class="tbl-wrap" style="max-height:none"><table class="t acc" id="tblSgaTeam"></table></div>
               </div></div>
-            <div class="card" style="margin-top:14px"><div class="hd"><div><h3>비목별 · 최종 OL 대비</h3></div></div>
+
+            <div class="hide" id="sgaMatchCard"><div class="hd"><div><h3>적요 매칭 검토</h3>
+              <div class="desc">월·일자만 다른 적요는 자동으로 같은 항목으로 묶습니다. 아래는
+                <b>같은 항목이라고 확신할 수 없는 적요</b>입니다 — 확정할 때까지 신규/당월없음으로
+                임의 처리하거나 자동 병합하지 않습니다. 매칭은 <b>분석용 연결만</b> 바꿉니다.
+                ERP 원본과 전체·팀·비목 합계는 변하지 않습니다.</div></div>
+              <div class="toolbar">
+                <button class="btn sm ghost" id="btnSgaMatchReset">확정 이력 초기화</button>
+                <button class="btn sm ghost" id="btnSgaMatchClose">닫기</button></div></div>
               <div class="bd" style="padding:0">
-                <div class="tbl-wrap" style="max-height:none"><table class="t" id="tblSgaCat"></table></div>
+                <div class="tbl-wrap" style="max-height:560px"><table class="t" id="tblSgaMatch"></table></div>
               </div></div>
+
+            <div class="card" id="sgaDetailCard" style="margin-top:14px"><div class="hd"><div>
+              <h3>비목 · 적요 전체 상세</h3>
+              <div class="desc" id="sgaDetailNote"></div></div>
+              <div class="toolbar"><button class="btn sm ghost" id="btnSgaFold">접기</button></div></div>
+              <div class="bd" style="padding:0" id="sgaDetail"></div></div>
+
+            <div class="grid g21" style="margin-top:14px">
+              <div class="card"><div class="hd"><div><h3>비목별 증감</h3>
+                <div class="desc" id="sgaBarNote"></div></div></div>
+                <div class="bd"><div id="chSga"></div></div></div>
+              <div class="card"><div class="hd"><div><h3>비목별 비교</h3>
+                <div class="desc">계정 매핑 근거가 있는 비목까지만 최종 OL과 비교합니다.</div></div></div>
+                <div class="bd" style="padding:0">
+                  <div class="tbl-wrap" style="max-height:none"><table class="t" id="tblSgaCat"></table></div>
+                </div></div>
+            </div>
           </div>
 
           <!-- 매출 명세 -->
@@ -331,16 +367,17 @@
   </div>
 </div>
 
-<script src="mp-auth.js?v=20260911a"></script>
-<script src="mp-data.js?v=20260911a"></script>
-<script src="mp-calc.js?v=20260911a"></script>
-<script src="mp-ui.js?v=20260911a"></script>
-<script src="mp-plan.js?v=20260911a"></script>
-<script src="mp-week.js?v=20260911a"></script>
-<script src="mp-admin.js?v=20260911a"></script>
-<script src="mp-import.js?v=20260911a"></script>
-<script src="mp-erp.js?v=20260911a"></script>
-<script src="mp-report.js?v=20260911a"></script>
+<script src="mp-auth.js?v=20260911c"></script>
+<script src="mp-data.js?v=20260911c"></script>
+<script src="mp-calc.js?v=20260911c"></script>
+<script src="mp-ui.js?v=20260911c"></script>
+<script src="mp-plan.js?v=20260911c"></script>
+<script src="mp-week.js?v=20260911c"></script>
+<script src="mp-admin.js?v=20260911c"></script>
+<script src="mp-import.js?v=20260911c"></script>
+<script src="mp-sga.js?v=20260911c"></script>
+<script src="mp-erp.js?v=20260911c"></script>
+<script src="mp-report.js?v=20260911c"></script>
 <script>
 (function () {
   'use strict';
