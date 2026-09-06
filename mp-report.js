@@ -263,7 +263,10 @@
       $$('th,td', tr).forEach(function (c) {
         var t = c.textContent.trim();
         if (!t || t === '–') { row.push(null); return; }
-        var n = t.replace(/,/g, '');
+        /* 부호가 붙은 숫자(+2,137.7 · −555.0)를 글자로 넣으면 엑셀에서
+           합계도 정렬도 되지 않는다. 게다가 화면의 − 는 U+2212 라
+           엑셀이 숫자로 읽지도 못한다. 부호를 풀어서 넣는다. */
+        var n = t.replace(/,/g, '').replace(/^\+/, '').replace(/^−/, '-');
         row.push(/^-?\d+(\.\d+)?$/.test(n) ? Number(n) : t);
         /* 병합된 칸만큼 빈 칸을 채워 열이 밀리지 않게 한다 */
         var span = +(c.getAttribute('colspan') || 1);
