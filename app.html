@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ATEC 이동계획</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20260908b">
+<link rel="stylesheet" href="styles.css?v=20260909a">
 </head>
 <body>
 
@@ -21,7 +21,7 @@
       <div class="grp">계획 관리</div>
       <button data-p="plan">월별 이동계획</button>
       <button data-p="week">주차별 변동 관리</button>
-      <button data-p="aux" disabled>이동계획 부속 시트</button>
+      <button data-p="aux">이동계획 부속 시트</button>
       <div class="grp">실적 검토</div>
       <button data-p="erp">확정 판관비/매출현황</button>
       <div class="grp">데이터</div>
@@ -134,6 +134,48 @@
             <div class="legend" id="lgWeek"></div></div>
             <div class="bd"><div class="chart" id="chWeek"></div></div></div>
         </div>
+      </section>
+
+      <!-- ===== 이동계획 부속 시트 ===== -->
+      <section id="p-aux" class="hide">
+        <div class="gbar">
+          <div class="gline"><span class="glabel">시트</span><div class="tabs" id="auxTabs"></div>
+            <div class="spacer"></div>
+            <button class="btn" id="btnAuxNew">새 시트</button>
+            <button class="btn" id="btnAuxRen" data-need="edit">이름 변경</button>
+            <button class="btn dark hide" id="btnAuxDel">시트 삭제</button>
+            <button class="btn" id="btnAuxXlsx">엑셀 내보내기</button></div>
+          <div class="gline" id="auxTools">
+            <span class="glabel">행</span>
+            <button class="btn sm" data-act="insRowUp" data-need="edit" title="선택한 행 위에 넣기">위에 +</button>
+            <button class="btn sm" data-act="insRowDn" data-need="edit" title="선택한 행 아래에 넣기">아래 +</button>
+            <button class="btn sm" data-act="delRow" data-need="edit">삭제</button>
+            <span class="glabel" style="margin-left:14px">열</span>
+            <button class="btn sm" data-act="insColL" data-need="edit" title="선택한 열 왼쪽에 넣기">왼쪽 +</button>
+            <button class="btn sm" data-act="insColR" data-need="edit" title="선택한 열 오른쪽에 넣기">오른쪽 +</button>
+            <button class="btn sm" data-act="delCol" data-need="edit">삭제</button>
+            <span class="glabel" style="margin-left:14px">셀</span>
+            <button class="btn sm" data-act="merge" data-need="edit">병합</button>
+            <button class="btn sm" data-act="unmerge" data-need="edit">병합 해제</button>
+            <button class="btn sm" data-act="clear" data-need="edit">내용 지우기</button>
+            <div class="spacer"></div>
+            <span class="chip" id="auxSave">저장됨</span>
+            <button class="btn" id="btnAuxSave" data-need="edit">저장</button></div>
+        </div>
+
+        <div id="auxRo" class="hide"></div>
+        <div id="auxConflict" class="hide"></div>
+        <div id="auxEmpty" class="hide"></div>
+
+        <div class="card"><div class="hd"><div><h3 id="auxMeta"></h3>
+          <div class="desc">셀을 눌러 바로 고칩니다 · <b>Enter</b> 아래 · <b>Tab</b> 오른쪽 ·
+            <b>Shift+클릭</b> 으로 범위 선택 · 엑셀에서 복사해 <b>붙여넣기</b> 하면 표가 알아서 늘어납니다 ·
+            숫자로 읽히는 값은 숫자로 저장됩니다.
+            <b>수식과 셀 서식(색 · 테두리 · 열폭)은 보존하지 않습니다</b> — 값과 병합만 남습니다.</div></div>
+          <span class="q" id="auxSel"></span></div>
+          <div class="bd" style="padding:0">
+            <div class="gwrap"><table class="grid" id="gAux"></table></div>
+          </div></div>
       </section>
 
       <!-- ===== 확정 판관비 / 매출현황 ===== -->
@@ -276,15 +318,16 @@
   </div>
 </div>
 
-<script src="mp-auth.js?v=20260908b"></script>
-<script src="mp-data.js?v=20260908b"></script>
-<script src="mp-calc.js?v=20260908b"></script>
-<script src="mp-ui.js?v=20260908b"></script>
-<script src="mp-plan.js?v=20260908b"></script>
-<script src="mp-week.js?v=20260908b"></script>
-<script src="mp-admin.js?v=20260908b"></script>
-<script src="mp-import.js?v=20260908b"></script>
-<script src="mp-erp.js?v=20260908b"></script>
+<script src="mp-auth.js?v=20260909a"></script>
+<script src="mp-data.js?v=20260909a"></script>
+<script src="mp-calc.js?v=20260909a"></script>
+<script src="mp-ui.js?v=20260909a"></script>
+<script src="mp-plan.js?v=20260909a"></script>
+<script src="mp-week.js?v=20260909a"></script>
+<script src="mp-admin.js?v=20260909a"></script>
+<script src="mp-import.js?v=20260909a"></script>
+<script src="mp-erp.js?v=20260909a"></script>
+<script src="mp-aux.js?v=20260909a"></script>
 <script>
 (function () {
   'use strict';
@@ -341,20 +384,24 @@
     dash:  ['경영현황 대시보드', '기간 · 팀 필터 · 계획 vs 최종 OL vs 확정실적'],
     plan:  ['월별 이동계획', '주차별 OL 입력 · 전주 대비 변동 · 확정실적 대비'],
     week:  ['주차별 변동 관리', '계획 → 전주 → 금주 · 변동 사유'],
+    aux:   ['이동계획 부속 시트', '워크숍 · 요약 · 충당금 — 값과 병합만 보존'],
     erp:   ['확정 판관비 / 매출현황', 'ERP 확정본 대사 · 차이 사유 · 마감 확정'],
     admin: ['설정 · 데이터 관리', '월 개폐 · 확정 · 팀원 · 변경 이력'],
     check: ['연결 · 권한 점검', 'RLS 가 실제로 막는지 확인']
   };
   function go(p) {
     if (p === 'migrate') { location.href = 'migrate.html'; return; }
+    /* 부속 시트는 문서 통째로 저장한다. 화면을 떠나기 전에 흘린 것을 마저 보낸다. */
+    if (UI.page === 'aux' && p !== 'aux' && window.MpAux && MpAux.dirty()) { MpAux.flush(); }
     UI.page = p;
     $$('#nav button').forEach(function (b) { b.classList.toggle('on', b.dataset.p === p); });
-    ['dash', 'plan', 'week', 'erp', 'admin', 'check'].forEach(function (s) { $('#p-' + s).classList.toggle('hide', s !== p); });
+    ['dash', 'plan', 'week', 'aux', 'erp', 'admin', 'check'].forEach(function (s) { $('#p-' + s).classList.toggle('hide', s !== p); });
     $('#pgTitle').textContent = TITLES[p][0];
     $('#pgSub').textContent = TITLES[p][1];
     if (p === 'dash') renderDash();
     if (p === 'plan') MpPlan.open(UI.month, UI.team);
     if (p === 'week') MpWeek.open(UI.month, UI.team);
+    if (p === 'aux') MpAux.open();
     if (p === 'erp') MpErp.open(UI.month);
     if (p === 'admin') MpAdmin.open();
     if (p === 'check') renderCheck();
