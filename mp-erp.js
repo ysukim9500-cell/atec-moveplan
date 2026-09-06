@@ -101,10 +101,14 @@
       });
     }
     $('#sgaMatchN').textContent = list.length;
+    /* 매칭 확정은 관리자와 팀장만 한다. 폰에서는 아무도 못 한다. */
+    var canMatch = !MpAuth.viewOnly() && (MpAuth.isAdmin() || MpAuth.isLead());
     $('#btnSgaMatch').className = 'btn ' + (list.length ? 'red' : 'ghost');
+    $('#btnSgaMatch').classList.toggle('hide', !canMatch);
+    $('#btnSgaMatchReset').classList.toggle('hide', !MpAuth.isAdmin() || MpAuth.viewOnly());
     var card = $('#sgaMatchCard');
-    card.className = S.matchOpen ? 'card' : 'hide';
-    if (!S.matchOpen) return;
+    card.className = (S.matchOpen && canMatch) ? 'card' : 'hide';
+    if (!S.matchOpen || !canMatch) return;
 
     if (MATCH_READY === false) {
       $('#tblSgaMatch').innerHTML = '<tbody><tr><td class="txt">매칭 확정을 저장할 표(mp_desc_match)가 아직 없습니다. ' +
@@ -132,8 +136,11 @@
             : (r.currDesc ? esc(G.prettyDesc(r.currDesc, r.currRaw)) : '<span class="q">후보 없음</span>')) + '</td>' +
         '<td class="n">' + (r.prev == null ? '–' : uf(r.prev / 1e6)) + '</td>' +
         '<td class="n cur">' + (r.curr == null ? '–' : uf(r.curr / 1e6)) + '</td>' +
-        '<td><button class="btn sm" data-mg="' + i + '">같은 항목</button> ' +
-            '<button class="btn sm" data-kp="' + i + '">다른 항목</button></td></tr>';
+        /* 팀장은 자기 팀만 정할 수 있다. RLS 가 그렇고, 버튼도 그래야 한다. */
+        '<td>' + (MpAuth.canWriteTeam(r.team)
+          ? '<button class="btn sm" data-mg="' + i + '">같은 항목</button> ' +
+            '<button class="btn sm" data-kp="' + i + '">다른 항목</button>'
+          : '<span class="q">' + esc(D.teamName(r.team)) + ' 담당자만</span>') + '</td></tr>';
     });
     $('#tblSgaMatch').innerHTML = h + '</tbody>';
 
@@ -1016,8 +1023,13 @@
     $('#btnSgaMatch').onclick = function () { S.matchOpen = !S.matchOpen; render(); };
     $('#btnSgaMatchClose').onclick = function () { S.matchOpen = false; render(); };
     $('#btnSgaMatchReset').onclick = function () {
-      if (!window.confirm(D.moOf(S.m) + '월의 적요 매칭 확정 이력을 모두 지웁니다.\n다시 확인 필요 상태로 돌아갑니다.')) return;
-      clearMatch(S.m).then(function () { flash('확정 이력을 지웠습니다'); render(); })
+      if (!MpAuth.isAdmin()) { flash('경영지원팀만 초기화할 수 있습니다', true); return; }
+      var n = Object.keys(MATCH).filter(function (k) { return k.indexOf(S.m + '|') === 0; }).length;
+      if (!window.confirm(D.moOf(S.m) + '월의 적요 매칭 확정 이력 ' + n + '건을 모두 지웁니다.\n' +
+        '사람이 판단한 결과가 사라지고 다시 «확인 필요» 상태로 돌아갑니다.')) return;
+      clearMatch(S.m)
+        .then(function () { return D.audit('적요 매칭 초기화', { m: S.m, ref: '확정 이력', before: n + '건', after: '전부 삭제' }); })
+        .then(function () { flash('확정 이력을 지웠습니다'); render(); })
         .catch(function (e) { flash(e.message, true); });
     };
     $('#btnSgaFold').onclick = function () { S.fold = !S.fold; render(); };

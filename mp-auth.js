@@ -332,7 +332,10 @@
   }
 
   /* ---------- 권한 (화면 표시용) ---------- */
-  function isAdmin() { var m = me(); return !!(m && (m.mpRole === 'admin' || m.role === 'admin')); }
+  /* 이동계획 관리자는 mp_members.mp_role 만 정한다.
+     전사 관리자(profiles.role)를 여기 섞으면 화면은 열리는데 RLS 가 막는다 —
+     사용자는 입력해 놓고 «권한이 없습니다» 만 반복해서 보게 된다. */
+  function isAdmin() { var m = me(); return !!(m && m.mpRole === 'admin'); }
   function isLead()  { var m = me(); return !!(m && m.mpRole === 'lead'); }
   function myTeam()  { var m = me(); return m ? m.team : null; }
 
