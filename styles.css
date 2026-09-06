@@ -307,3 +307,65 @@ table.t tbody tr:hover td{background:#FBFCFC}
   .grid.g4{grid-template-columns:1fr}
   .content{padding:14px 14px 50px}
 }
+
+/* ============================================================
+   월별 이동계획 손익표
+   ============================================================ */
+#tblPlan{min-width:1180px;font-size:12.5px}
+#tblPlan th,#tblPlan td{padding:5px 8px;border-bottom:1px solid var(--rule2);
+  border-right:1px solid var(--rule2);white-space:nowrap}
+#tblPlan thead th{background:var(--soft);font-size:11px;color:var(--muted);text-align:center;
+  border-bottom:1px solid var(--rule);position:sticky;top:0;z-index:3}
+#tblPlan thead th.n{text-align:right}
+#tblPlan th.gh{background:var(--g1);color:var(--ink2)}
+#tblPlan th.prvh,#tblPlan th.prvc{background:var(--amber-bg);color:var(--amber);
+  border-bottom-color:var(--amber-line)}
+#tblPlan th.acth,#tblPlan th.actc{background:var(--band-act);color:var(--red-d);
+  border-bottom-color:var(--red-line)}
+#tblPlan td.sec{background:var(--soft);font-weight:700;vertical-align:top;
+  border-right:1px solid var(--rule)}
+#tblPlan td.itc{background:var(--paper)}
+#tblPlan td.itc.b{font-weight:700}
+#tblPlan td.n{text-align:right;font-family:var(--num);font-variant-numeric:tabular-nums}
+#tblPlan td.gs{background:var(--band-plan)}
+#tblPlan td.wkcol{background:var(--band-ol)}
+#tblPlan td.wkcol.cur{background:#FFFBEF}
+#tblPlan th.wkcol.cur{background:var(--amber-bg);color:var(--amber)}
+#tblPlan th .mini{display:block;font-size:9.5px;font-weight:400;opacity:.8}
+#tblPlan td.prvc{background:#FFFCF4}
+#tblPlan td.actc{background:#FDF7F9}
+#tblPlan td.txt{white-space:normal;min-width:150px}
+#tblPlan tr.sum td{background:var(--soft);font-weight:700}
+#tblPlan tr.sum td.wkcol{background:#F4F6F7}
+#tblPlan tr.sum td.prvc{background:#FDF6E6}
+#tblPlan tr.op td{background:var(--g1);font-weight:700}
+#tblPlan tr:hover td{background:#FAFBFC}
+#tblPlan tr.sum:hover td,#tblPlan tr.op:hover td{background:var(--soft)}
+
+/* 상세 행 */
+#tblPlan tr.dtl td{background:#FBFCFD}
+#tblPlan tr.dtl td.dtlname{padding-left:20px;color:var(--ink2);font-size:12px}
+#tblPlan tr.dtl .tw{color:var(--faint);margin-right:5px}
+#tblPlan tr.dsub td{background:#F4F6F7;border-bottom:1px solid var(--rule)}
+#tblPlan .cv{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:11px;
+  width:15px;padding:0;margin-right:2px}
+#tblPlan .kidn{display:inline-block;margin-left:5px;padding:0 5px;border-radius:8px;
+  background:var(--g1);color:var(--muted);font-size:10.5px;font-weight:700}
+.rowbtn{border:1px solid var(--rule);background:var(--paper);color:var(--ink2);cursor:pointer;
+  width:18px;height:18px;line-height:1;border-radius:4px;font-size:12px;padding:0;margin-left:6px}
+.rowbtn.add:hover{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok)}
+.rowbtn.del:hover{background:var(--red-soft);border-color:var(--red-line);color:var(--red-d)}
+.cumbtn{border:1px solid var(--rule);background:var(--paper);color:var(--ink2);
+  width:22px;height:22px;line-height:1;border-radius:5px;cursor:pointer;font-size:13px;padding:0}
+.cumbtn:hover{background:var(--red-soft);border-color:var(--red-line);color:var(--red-d)}
+#tblPlan th.cumtg,#tblPlan td.cumtg{background:var(--soft);border-left:1px solid var(--rule)}
+
+/* 입력칸 */
+.ce{width:100%;border:1px solid transparent;background:transparent;padding:2px 4px;
+  text-align:right;font-family:var(--num);font-size:12.5px;border-radius:4px}
+.ce:hover{border-color:var(--g2);background:#fff}
+.ce:focus{outline:0;border-color:var(--red-line);background:#fff;box-shadow:0 0 0 2px rgba(215,0,81,.09)}
+textarea.na{width:100%;border:1px solid transparent;background:transparent;resize:none;
+  padding:2px 4px;font-size:11.5px;line-height:1.5;border-radius:4px;overflow:hidden;color:var(--ink2)}
+textarea.na:hover{border-color:var(--g2);background:#fff}
+textarea.na:focus{outline:0;border-color:var(--red-line);background:#fff;color:var(--ink)}
