@@ -463,15 +463,22 @@ table.t td.n{text-align:right;font-family:var(--num);white-space:nowrap}
   }
 
   /* 이관이 끝나면 실제 운영 상태로 되돌린다.
-     ERP 확정본이 있는 달은 final, 지나간 달은 closed, 지금 쓰는 달만 open. */
+     ERP 확정본이 있는 달은 final, 지나간 달은 closed, 지금 쓰는 달만 open.
+
+     주의 : PostgREST 는 대량 삽입에서 모든 객체가 같은 키를 갖기를 요구한다.
+     ERP 마감월에만 final_k 를 붙이면 "All object keys must match" 로 400 이 난다.
+     그러면 12개월이 열린 채로 남는다 — 값은 null 이라도 키는 반드시 채운다. */
   function finalize() {
     var rows = MODEL.periods.map(function (p) {
       var mo = (p.m % 12) + 1;
-      var st = 'closed';
-      if (mo === 9) st = 'open';
-      var o = { m: p.m, state: st, weeks: p.weeks };
-      if (MODEL.erpM != null && p.m === MODEL.erpM) { o.state = 'final'; o.final_k = p.weeks - 1; o.final_src = 'ERP 마감 (이관)'; }
-      return o;
+      var isErp = (MODEL.erpM != null && p.m === MODEL.erpM);
+      return {
+        m: p.m,
+        state: isErp ? 'final' : (mo === 9 ? 'open' : 'closed'),
+        weeks: p.weeks,
+        final_k:   isErp ? (p.weeks - 1) : null,
+        final_src: isErp ? 'ERP 마감 (이관)' : null
+      };
     });
     return post('mp_periods', rows, 'm').then(function () {
       log('월 개폐 상태 정리 — 9월 open · ERP 마감월 final · 나머지 closed');
