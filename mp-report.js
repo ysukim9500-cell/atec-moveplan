@@ -101,6 +101,16 @@
 
   function p2(n) { return (n < 10 ? '0' : '') + n; }
 
+  /**
+   * 계획 대비 비율.
+   * 기준이 0 이하면 비율을 내지 않는다 — 계획이 −72.8 인데 실적이 +482.2 면
+   * 산술적으로는 −662% 가 나오지만 그건 읽는 사람을 속이는 숫자다.
+   * 그런 줄은 금액 차이로만 읽어야 한다.
+   */
+  function ratio(v, base) {
+    return (base == null || v == null || base <= 0) ? '–' : pct(v / base);
+  }
+
   function monthTabs() {
     var out = [];
     for (var mo = 1; mo <= 12; mo++) {
@@ -125,14 +135,14 @@
   function renderSummary(b, p) {
     var h = '<thead><tr><th style="width:190px">항목</th>' +
       '<th class="n">월간계획</th><th class="n">' + esc(b.label) + '</th>' +
-      '<th class="n">계획 대비</th><th class="n">달성률</th></tr></thead><tbody>';
+      '<th class="n">차이</th><th class="n">계획 대비</th></tr></thead><tbody>';
     LINES.forEach(function (L) {
       var pv = p[L.k], av = b[L.k];
       var d = (pv == null || av == null) ? null : av - pv;
       h += '<tr' + (L.strong ? ' class="grand"' : '') + '><td>' + L.label + '</td>' +
         '<td class="n gs">' + fmt(pv) + '</td><td class="n cur"><b>' + fmt(av) + '</b></td>' +
         '<td class="n ' + dcls(d) + '">' + sgn(d) + '</td>' +
-        '<td class="n">' + (pv ? pct(av / pv) : '–') + '</td></tr>';
+        '<td class="n">' + ratio(av, pv) + '</td></tr>';
     });
     h += '<tr class="rate"><td>매출이익률</td><td class="n gs">' + (p.rev ? pct(p.gp / p.rev) : '–') + '</td>' +
       '<td class="n cur">' + (b.rev ? pct(b.gp / b.rev) : '–') + '</td><td class="n"></td><td class="n"></td></tr>';
@@ -144,7 +154,7 @@
     var h = '<thead><tr><th style="width:64px">월</th><th style="width:76px">구분</th>' +
       '<th class="n">매출</th><th class="n">매출이익</th><th class="n">판관비</th>' +
       '<th class="n">영업이익</th><th class="n">공판</th><th class="n">공판후영업이익</th>' +
-      '<th class="n">계획 매출</th><th class="n">달성률</th></tr></thead><tbody>';
+      '<th class="n">계획 매출</th><th class="n">계획 대비</th></tr></thead><tbody>';
     var tot = { rev: 0, gp: 0, sga: 0, op: 0, gongpan: 0, op2: 0, prev: 0 };
     ms.forEach(function (m) {
       var r = pick(m, team), v = r.v || {};
@@ -157,21 +167,21 @@
         '<td class="n">' + fmt(v.sga) + '</td><td class="n">' + fmt(v.op) + '</td>' +
         '<td class="n">' + fmt(v.gongpan) + '</td><td class="n"><b>' + fmt(v.op2) + '</b></td>' +
         '<td class="n gs">' + fmt(pv) + '</td>' +
-        '<td class="n">' + (pv ? pct(v.rev / pv) : '–') + '</td></tr>';
+        '<td class="n">' + ratio(v.rev, pv) + '</td></tr>';
     });
     h += '<tr class="grand"><td>합계</td><td></td>' +
       '<td class="n">' + fmt(tot.rev) + '</td><td class="n">' + fmt(tot.gp) + '</td>' +
       '<td class="n">' + fmt(tot.sga) + '</td><td class="n">' + fmt(tot.op) + '</td>' +
       '<td class="n">' + fmt(tot.gongpan) + '</td><td class="n"><b>' + fmt(tot.op2) + '</b></td>' +
       '<td class="n gs">' + fmt(tot.prev) + '</td>' +
-      '<td class="n">' + (tot.prev ? pct(tot.rev / tot.prev) : '–') + '</td></tr>';
+      '<td class="n">' + ratio(tot.rev, tot.prev) + '</td></tr>';
     $('#tblRpMonth').innerHTML = h + '</tbody>';
   }
 
   /* ---- 3. 팀별 ---- */
   function renderTeams(ms) {
     var h = '<thead><tr><th>팀</th><th class="n">계획 매출</th><th class="n">매출</th>' +
-      '<th class="n">달성률</th><th class="n">매출이익</th><th class="n">이익률</th>' +
+      '<th class="n">계획 대비</th><th class="n">매출이익</th><th class="n">이익률</th>' +
       '<th class="n">판관비</th><th class="n">공판후영업이익</th></tr></thead><tbody>';
     var t = { pv: 0, rev: 0, gp: 0, sga: 0, op2: 0 };
     D.TEAMS.forEach(function (tm) {
@@ -181,14 +191,14 @@
       t.pv += pv || 0; t.rev += b.rev; t.gp += b.gp; t.sga += b.sga; t.op2 += b.op2;
       h += '<tr><td>' + esc(D.teamName(tm)) + '</td>' +
         '<td class="n gs">' + fmt(pv) + '</td><td class="n"><b>' + fmt(b.rev) + '</b></td>' +
-        '<td class="n">' + (pv ? pct(b.rev / pv) : '–') + '</td>' +
+        '<td class="n">' + ratio(b.rev, pv) + '</td>' +
         '<td class="n">' + fmt(b.gp) + '</td>' +
         '<td class="n">' + (b.rev ? pct(b.gp / b.rev) : '–') + '</td>' +
         '<td class="n">' + fmt(b.sga) + '</td><td class="n">' + fmt(b.op2) + '</td></tr>';
     });
     h += '<tr class="grand"><td>사업부 합계</td><td class="n gs">' + fmt(t.pv) + '</td>' +
       '<td class="n"><b>' + fmt(t.rev) + '</b></td>' +
-      '<td class="n">' + (t.pv ? pct(t.rev / t.pv) : '–') + '</td>' +
+      '<td class="n">' + ratio(t.rev, t.pv) + '</td>' +
       '<td class="n">' + fmt(t.gp) + '</td>' +
       '<td class="n">' + (t.rev ? pct(t.gp / t.rev) : '–') + '</td>' +
       '<td class="n">' + fmt(t.sga) + '</td><td class="n">' + fmt(t.op2) + '</td></tr>';
