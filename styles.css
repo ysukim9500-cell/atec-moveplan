@@ -465,35 +465,3 @@ td.cz{white-space:normal;line-height:1.7}
 #tblSgaTeam td,#tblRevTeam td{vertical-align:middle}
 #tblErpRecon tr.devrow td{background:var(--soft);color:var(--ink2);font-size:12px}
 #tblErpRecon tr.devrow td.txt.q{font-size:11px}
-
-/* ============================================================
-   부속 시트 — 범용 그리드
-   ============================================================ */
-.btn.sm{padding:3px 8px;font-size:11.5px}
-.gwrap{overflow:auto;max-height:calc(100vh - 300px);min-height:340px}
-table.grid{border-collapse:separate;border-spacing:0;font-size:12px;
-  font-variant-numeric:tabular-nums;background:var(--paper)}
-table.grid th,table.grid td{border-right:1px solid var(--rule2);border-bottom:1px solid var(--rule2);
-  padding:4px 7px;white-space:pre;vertical-align:middle}
-
-/* 머리글 — 스크롤해도 붙어 있다 */
-table.grid thead th{position:sticky;top:0;z-index:3;background:var(--g1);color:var(--muted);
-  font-size:10.5px;font-weight:700;text-align:center;min-width:74px;
-  border-bottom:1px solid var(--rule);cursor:pointer;user-select:none}
-table.grid th.rh{position:sticky;left:0;z-index:2;background:var(--g1);color:var(--muted);
-  font-size:10.5px;font-weight:700;text-align:center;width:38px;min-width:38px;
-  border-right:1px solid var(--rule);cursor:pointer;user-select:none}
-table.grid th.corner{position:sticky;left:0;top:0;z-index:4;background:var(--g2);
-  width:38px;min-width:38px;cursor:default}
-table.grid th.insel{background:var(--red-soft);color:var(--red-d)}
-
-table.grid td.cel{min-width:74px;max-width:280px;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
-table.grid td.cel.num{text-align:right;font-family:var(--num)}
-table.grid td.cel.mg{background:var(--soft);font-weight:700}
-table.grid td.cel:hover{background:#FAFBFC}
-table.grid td.cel.sel{background:var(--red-soft);box-shadow:inset 0 0 0 1px var(--red-line)}
-table.grid td.cel:focus{outline:0;background:#fff;
-  box-shadow:inset 0 0 0 2px var(--red),0 0 0 2px rgba(215,0,81,.10)}
-/* 편집 중인 칸은 잘리지 않게 넘쳐 보인다 — 긴 글을 못 읽으면 못 고친다 */
-table.grid td.cel:focus{position:relative;z-index:5;overflow:visible;max-width:none;
-  white-space:pre-wrap;background:#fff}
