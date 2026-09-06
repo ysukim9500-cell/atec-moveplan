@@ -181,8 +181,13 @@
           if (!p) { logout(); return { error: '계정 정보를 불러오지 못했습니다.' }; }
           if (p.status === 'pending')  { logout(); return { error: '아직 관리자 승인 대기 중인 계정입니다.' }; }
           if (p.status === 'rejected') { logout(); return { error: '승인이 거부된 계정입니다. 관리자에게 문의하세요.' }; }
-          if (p.perms.indexOf(PERM) < 0 && p.role !== 'admin') {
-            logout(); return { error: '이동계획 시스템 접근 권한이 없습니다. 관리자에게 요청하세요.' };
+          /* 이동계획 접근 여부는 mp_members 가 정한다.
+             공용 profiles.perms 를 건드리지 않기 위해서다 — 다른 시스템에 영향이 간다.
+             여기서 막는 건 안내일 뿐이고, 실제 차단은 RLS 가 한다
+             (mp_members 행이 없으면 mp_my_role() 이 null 이라 한 줄도 안 나온다). */
+          if (!p.mpRole) {
+            logout();
+            return { error: '이동계획 시스템에 등록되지 않은 계정입니다. 경영지원팀에 소속 팀 지정을 요청하세요.' };
           }
           return { ok: true, profile: p };
         });

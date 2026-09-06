@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ATEC 이동계획</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20260907d">
+<link rel="stylesheet" href="styles.css?v=20260907e">
 </head>
 <body>
 
@@ -25,6 +25,7 @@
       <div class="grp">실적 검토</div>
       <button data-p="erp" disabled>확정 판관비/매출현황</button>
       <div class="grp">데이터</div>
+      <button data-p="admin" id="navAdmin">설정 · 데이터 관리</button>
       <button data-p="check">연결 · 권한 점검</button>
       <button data-p="migrate" id="navMig">데이터 이관</button>
     </nav>
@@ -135,6 +136,50 @@
         </div>
       </section>
 
+      <!-- ===== 설정 · 데이터 관리 ===== -->
+      <section id="p-admin" class="hide">
+        <div id="adGate" class="hide"></div>
+        <div id="adBody">
+          <div class="gbar"><div class="gline">
+            <span class="glabel">관리</span>
+            <span class="chip">여기서 하는 일은 전 팀에 영향을 줍니다. 모두 <b>변경 이력</b>에 남습니다.</span>
+            <div class="spacer"></div><span class="chip" id="adSave">—</span>
+          </div></div>
+
+          <div class="sec-title"><h2>월 운영</h2><span>작성 가능 · 마감 · 최종확정</span></div>
+          <div class="card"><div class="hd"><div><h3>월 개폐 · 확정</h3>
+            <div class="desc"><b>작성 가능</b>인 달만 팀장이 값을 넣을 수 있습니다 ·
+              <b>최종확정</b>하면 잠기고, 풀려면 사유가 필요합니다 ·
+              주차 수는 그 달에 제출될 OL 회차입니다.</div></div></div>
+            <div class="bd" style="padding:0">
+              <div class="tbl-wrap" style="max-height:none"><table class="t" id="tblPeriods"></table></div>
+            </div></div>
+
+          <div class="sec-title"><h2>팀원</h2><span id="memSub"></span></div>
+          <div class="card"><div class="hd"><div><h3>접근 권한 · 소속 팀</h3>
+            <div class="desc">역할을 지정해야 이동계획에 들어올 수 있습니다.
+              <b>팀장</b>은 자기 팀만, <b>관리자</b>는 전 팀을 수정합니다. <b>열람만</b>은 보기만 합니다.</div></div></div>
+            <div class="bd" style="padding:0">
+              <div class="tbl-wrap"><table class="t" id="tblMembers"></table></div>
+            </div></div>
+
+          <div class="sec-title"><h2>설정</h2></div>
+          <div class="card"><div class="bd">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <b style="font-size:12.5px">공판율</b>
+              <input id="gpRate" class="wkn" type="number" step="0.1" min="0" max="100" style="width:84px"> %
+              <button class="btn" id="btnGp">적용</button>
+              <span class="desc" style="margin:0">공판 = 매출 × 공판율. 이동계획 7·8월 전 팀에서 4.3% 가 확인되어 기본값으로 두었습니다.</span>
+            </div>
+          </div></div>
+
+          <div class="sec-title"><h2>변경 이력</h2><span>최근 60건 · 남기기만 하고 고치거나 지울 수 없습니다</span></div>
+          <div class="card"><div class="bd" style="padding:0">
+            <div class="tbl-wrap"><table class="t" id="tblAudit"></table></div>
+          </div></div>
+        </div>
+      </section>
+
       <!-- ===== 권한 점검 ===== -->
       <section id="p-check" class="hide">
         <div class="note info">
@@ -157,12 +202,13 @@
   </div>
 </div>
 
-<script src="mp-auth.js?v=20260907d"></script>
-<script src="mp-data.js?v=20260907d"></script>
-<script src="mp-calc.js?v=20260907d"></script>
-<script src="mp-ui.js?v=20260907d"></script>
-<script src="mp-plan.js?v=20260907d"></script>
-<script src="mp-week.js?v=20260907d"></script>
+<script src="mp-auth.js?v=20260907e"></script>
+<script src="mp-data.js?v=20260907e"></script>
+<script src="mp-calc.js?v=20260907e"></script>
+<script src="mp-ui.js?v=20260907e"></script>
+<script src="mp-plan.js?v=20260907e"></script>
+<script src="mp-week.js?v=20260907e"></script>
+<script src="mp-admin.js?v=20260907e"></script>
 <script>
 (function () {
   'use strict';
@@ -197,7 +243,7 @@
   MpAuth.requireAuth().then(function (p) {
     $('#chipWho').innerHTML = esc(p.name) + ' · <b>' + esc(teamLabel(p.team)) + '</b>';
     $('#whoFoot').innerHTML = esc(p.mpRole) + ' · <b>' + esc(teamLabel(p.team)) + '</b>';
-    if (p.mpRole !== 'admin') $('#navMig').disabled = true;
+    if (p.mpRole !== 'admin') { $('#navMig').disabled = true; $('#navAdmin').disabled = true; }
     return D.load(YEAR);
   }).then(function () {
     /* 기준 월 : 열려 있는 달, 없으면 마지막으로 값이 있는 달 */
@@ -219,18 +265,20 @@
     dash:  ['경영현황 대시보드', '기간 · 팀 필터 · 계획 vs 최종 OL vs 확정실적'],
     plan:  ['월별 이동계획', '주차별 OL 입력 · 전주 대비 변동 · 확정실적 대비'],
     week:  ['주차별 변동 관리', '계획 → 전주 → 금주 · 변동 사유'],
+    admin: ['설정 · 데이터 관리', '월 개폐 · 확정 · 팀원 · 변경 이력'],
     check: ['연결 · 권한 점검', 'RLS 가 실제로 막는지 확인']
   };
   function go(p) {
     if (p === 'migrate') { location.href = 'migrate.html'; return; }
     UI.page = p;
     $$('#nav button').forEach(function (b) { b.classList.toggle('on', b.dataset.p === p); });
-    ['dash', 'plan', 'week', 'check'].forEach(function (s) { $('#p-' + s).classList.toggle('hide', s !== p); });
+    ['dash', 'plan', 'week', 'admin', 'check'].forEach(function (s) { $('#p-' + s).classList.toggle('hide', s !== p); });
     $('#pgTitle').textContent = TITLES[p][0];
     $('#pgSub').textContent = TITLES[p][1];
     if (p === 'dash') renderDash();
     if (p === 'plan') MpPlan.open(UI.month, UI.team);
     if (p === 'week') MpWeek.open(UI.month, UI.team);
+    if (p === 'admin') MpAdmin.open();
     if (p === 'check') renderCheck();
   }
   $$('#nav button').forEach(function (b) {

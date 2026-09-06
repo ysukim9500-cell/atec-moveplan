@@ -221,6 +221,70 @@
     });
   }
 
+  /* 변경 이력 — 남기기만 하고 고치거나 지우지 못한다 */
+  function audit(action, o) {
+    o = o || {};
+    var me = MpAuth.me() || {};
+    return MpAuth.rest('mp_audit', {
+      method: 'POST', headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify([{
+        user_id: me.id || null, email: me.email || null, action: action,
+        m: o.m == null ? null : o.m, team: o.team || null, ref: o.ref || null,
+        before: o.before == null ? null : String(o.before),
+        after: o.after == null ? null : String(o.after),
+        via: o.via || 'web'
+      }])
+    }).catch(function () { /* 이력 실패가 본 작업을 막지는 않는다 */ });
+  }
+
+  /* 월 개폐 · 확정 */
+  function setPeriod(m, patch) {
+    var p = periodOf(m);
+    var row = { m: m, state: patch.state != null ? patch.state : p.state,
+                weeks: patch.weeks != null ? patch.weeks : p.weeks,
+                final_k: patch.final_k !== undefined ? patch.final_k : (p.final_k == null ? null : p.final_k),
+                final_src: patch.final_src !== undefined ? patch.final_src : (p.final_src || null),
+                unlock_reason: patch.unlock_reason !== undefined ? patch.unlock_reason : (p.unlock_reason || null) };
+    return send('mp_periods?on_conflict=m', {
+      method: 'POST', headers: PREF, body: JSON.stringify([row])
+    }).then(function () { S.periods[m] = row; return row; });
+  }
+
+  /* 이동계획 팀원 */
+  function loadMembers() {
+    return Promise.all([
+      getAll('profiles?select=id,email,name,role,status&order=name'),
+      getAll('mp_members?select=user_id,team,mp_role')
+    ]).then(function (r) {
+      var by = {}; r[1].forEach(function (x) { by[x.user_id] = x; });
+      return r[0].map(function (p) {
+        var mm = by[p.id];
+        return { id: p.id, email: p.email, name: p.name || p.email, status: p.status,
+                 team: mm ? mm.team : null, mpRole: mm ? mm.mp_role : null };
+      });
+    });
+  }
+  function setMember(userId, team, role) {
+    return send('mp_members?on_conflict=user_id', {
+      method: 'POST', headers: PREF,
+      body: JSON.stringify([{ user_id: userId, team: team, mp_role: role }])
+    });
+  }
+  function removeMember(userId) {
+    return send('mp_members?user_id=eq.' + userId, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+  }
+
+  function setConfig(k, val) {
+    S.config[k] = val;
+    return send('mp_config?on_conflict=key', {
+      method: 'POST', headers: PREF, body: JSON.stringify([{ key: k, val: val }])
+    });
+  }
+
+  function loadAudit(n) {
+    return getAll('mp_audit?select=at,email,action,m,team,ref,before,after,via&order=at.desc&limit=' + (n || 60));
+  }
+
   /* 매출현황 상세 */
   function addDetail(row) {
     return MpAuth.rest('mp_detail', {
@@ -251,6 +315,9 @@
     setPlan: setPlan, setWeek: setWeek,
     findNote: findNote, setNote: setNote,
     addDetail: addDetail, patchDetail: patchDetail, delDetail: delDetail,
+    audit: audit, setPeriod: setPeriod,
+    loadMembers: loadMembers, setMember: setMember, removeMember: removeMember,
+    setConfig: setConfig, loadAudit: loadAudit,
     SEC_ORDER: SEC_ORDER, ITEMS: ITEMS, LEAF: LEAF, ORG2TEAM: ORG2TEAM,
     S: S, load: load, loadErp: loadErp, erpAgg: erpAgg,
     mOf: mOf, moOf: moOf, yOf: yOf,

@@ -388,3 +388,19 @@ textarea.na:focus{outline:0;border-color:var(--red-line);background:#fff;color:v
 #tblWeekSum td.bd-sga{border-left:3px solid #990033}
 #tblWeekSum td.txt{white-space:normal;min-width:220px}
 #tblWeekMx td:first-child,#tblWeekMx th:first-child{text-align:left}
+
+/* ============================================================
+   관리 화면
+   ============================================================ */
+.sel{border:1px solid var(--rule);background:var(--paper);border-radius:6px;padding:4px 7px;
+  font-size:12px;width:100%}
+.sel:focus{outline:0;border-color:var(--red-line);box-shadow:0 0 0 2px rgba(215,0,81,.09)}
+.sel:disabled{background:var(--g1);color:var(--faint)}
+.wkn{width:56px;border:1px solid var(--rule);background:var(--paper);border-radius:6px;
+  padding:4px 6px;text-align:right;font-family:var(--num);font-size:12px}
+.wkn:focus{outline:0;border-color:var(--red-line)}
+#tblPeriods td,#tblMembers td{vertical-align:middle}
+#tblPeriods .btn,#tblMembers .btn{padding:4px 9px;font-size:11.5px}
+.q{color:var(--muted);font-size:11.5px}
+#tblAudit td{font-size:11.5px}
+#tblAudit td.txt{white-space:normal}
