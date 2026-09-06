@@ -369,3 +369,22 @@ textarea.na{width:100%;border:1px solid transparent;background:transparent;resiz
   padding:2px 4px;font-size:11.5px;line-height:1.5;border-radius:4px;overflow:hidden;color:var(--ink2)}
 textarea.na:hover{border-color:var(--g2);background:#fff}
 textarea.na:focus{outline:0;border-color:var(--red-line);background:#fff;color:var(--ink)}
+
+/* ============================================================
+   주차별 변동 관리 — 월별 변동 요약(= 이동계획차이)
+   ============================================================ */
+#tblWeekSum th,#tblWeekSum td{border-right:1px solid var(--rule2)}
+#tblWeekSum th.gh{background:var(--g1);color:var(--ink2);text-align:center}
+#tblWeekSum td.sec{background:var(--soft);font-weight:700;text-align:center;vertical-align:middle;
+  border-right:1px solid var(--rule)}
+#tblWeekSum td.sec .mini{display:block;font-size:10px;font-weight:400;color:var(--muted);margin-top:2px}
+#tblWeekSum tr.mstart td{border-top:1px solid var(--rule)}
+#tblWeekSum tr.msel td{background:#FFFDF6}
+#tblWeekSum tr.msel td.sec{background:var(--amber-bg);color:var(--amber)}
+#tblWeekSum td.gs{background:var(--band-plan)}
+#tblWeekSum td.cur{background:#FFFBEF;font-weight:700}
+#tblWeekSum td.bd-rev{border-left:3px solid #2F6FB5}
+#tblWeekSum td.bd-gp{border-left:3px solid #B07900}
+#tblWeekSum td.bd-sga{border-left:3px solid #990033}
+#tblWeekSum td.txt{white-space:normal;min-width:220px}
+#tblWeekMx td:first-child,#tblWeekMx th:first-child{text-align:left}
