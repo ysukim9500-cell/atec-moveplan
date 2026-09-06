@@ -84,8 +84,10 @@
         .catch(function () { S.submitReady = false; return []; })
     ]).then(function (r) {
       S.periods = {}; r[0].forEach(function (p) { S.periods[p.m] = p; });
-      S.plan = {}; r[1].forEach(function (x) { S.plan[key(x.m, x.team, x.sec, x.item)] = Number(x.val); });
-      S.week = {}; r[2].forEach(function (x) { S.week[key(x.m, x.team, x.sec, x.item, x.k)] = Number(x.val); });
+      /* NULL 은 «값 없음»이다. Number(null) 은 0 이라 그대로 쓰면 빈 칸이 0 이 되고,
+         그 주차가 기입된 것으로 잡혀 최종 OL 이 엉뚱한 주차로 간다. */
+      S.plan = {}; r[1].forEach(function (x) { if (x.val != null) S.plan[key(x.m, x.team, x.sec, x.item)] = Number(x.val); });
+      S.week = {}; r[2].forEach(function (x) { if (x.val != null) S.week[key(x.m, x.team, x.sec, x.item, x.k)] = Number(x.val); });
       S.detail = r[3];
       S.notes = r[4];
       S.erpMeta = {}; r[5].forEach(function (x) { S.erpMeta[x.m] = x; });
@@ -198,19 +200,33 @@
   function setPlan(m, team, sec, item, val) {
     var k = key(m, team, sec, item), old = S.plan[k];
     if (val == null) delete S.plan[k]; else S.plan[k] = val;
+    var undo = function (e) { if (old == null) delete S.plan[k]; else S.plan[k] = old; throw e; };
+    if (val == null) {
+      return send('mp_plan?m=eq.' + m + '&team=eq.' + encodeURIComponent(team) +
+                  '&sec=eq.' + encodeURIComponent(sec) + '&item=eq.' + encodeURIComponent(item),
+        { method: 'DELETE', headers: { Prefer: 'return=minimal' } }).catch(undo);
+    }
     return send('mp_plan?on_conflict=m,team,sec,item', {
       method: 'POST', headers: PREF,
       body: JSON.stringify([{ m: m, team: team, sec: sec, item: item, val: val }])
-    }).catch(function (e) { if (old == null) delete S.plan[k]; else S.plan[k] = old; throw e; });
+    }).catch(undo);
   }
 
   function setWeek(m, team, sec, item, wk, val) {
     var k = key(m, team, sec, item, wk), old = S.week[k];
     if (val == null) delete S.week[k]; else S.week[k] = val;
+    var undo = function (e) { if (old == null) delete S.week[k]; else S.week[k] = old; throw e; };
+    /* 비우면 행을 지운다. val=null 행을 남겨 두면 그 주차가 «기입됨»으로 잡힌다. */
+    if (val == null) {
+      return send('mp_week?m=eq.' + m + '&team=eq.' + encodeURIComponent(team) +
+                  '&sec=eq.' + encodeURIComponent(sec) + '&item=eq.' + encodeURIComponent(item) +
+                  '&k=eq.' + wk,
+        { method: 'DELETE', headers: { Prefer: 'return=minimal' } }).catch(undo);
+    }
     return send('mp_week?on_conflict=m,team,sec,item,k', {
       method: 'POST', headers: PREF,
       body: JSON.stringify([{ m: m, team: team, sec: sec, item: item, k: wk, val: val }])
-    }).catch(function (e) { if (old == null) delete S.week[k]; else S.week[k] = old; throw e; });
+    }).catch(undo);
   }
 
   /* 항목 행의 전주대비 변동 내용. 자리마다 한 줄만 둔다. */
