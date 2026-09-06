@@ -118,7 +118,7 @@
         '최종 OL = ' + (use + 1) + '주\n\n' +
         '확정하면 이 달은 잠깁니다. 값 수정 · 상세 · 변동사유가 모두 차단되고,\n' +
         '풀려면 사유를 남겨 확정을 해제해야 합니다.')) return;
-      D.setPeriod(m, { state: 'final', final_k: use, final_src: '관리자 확정 · ' + new Date().toISOString().slice(0, 10) })
+      D.setPeriod(m, { state: 'final', final_k: use, final_src: '관리자 확정 · ' + U.ymd() })
         .then(function () { return D.audit('최종 OL 확정', { m: m, ref: '월 상태', before: D.stateOf(m), after: '최종확정 · ' + (use + 1) + '주' }); })
         .then(function () { K.bust(); flash(mo + '월을 확정했습니다'); render(); }).catch(fail);
       return;
@@ -200,7 +200,7 @@
       var tgt = (r.m != null ? (D.moOf(r.m) + '월 ') : '') + (r.team ? D.teamName(r.team) : '');
       var body = (r.ref ? r.ref + ' : ' : '') +
         (r.before != null || r.after != null ? ((r.before == null ? '' : r.before) + ' → ' + (r.after == null ? '' : r.after)) : '');
-      h += '<tr><td class="q">' + esc(String(r.at).replace('T', ' ').slice(0, 16)) + '</td>' +
+      h += '<tr><td class="q">' + esc(U.ymdhm(r.at)) + '</td>' +
         '<td>' + esc(r.action || '') + '</td><td>' + esc(tgt) + '</td>' +
         '<td class="txt">' + esc(body) + (r.via && r.via !== 'web' ? ' <span class="q">(' + esc(r.via) + ')</span>' : '') + '</td>' +
         '<td class="q">' + esc(r.email || '') + '</td></tr>';

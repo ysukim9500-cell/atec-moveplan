@@ -34,7 +34,7 @@
 
   var S = {
     year: null, periods: {}, plan: {}, week: {}, detail: [], notes: [],
-    erpMeta: {}, erpRev: {}, erpSga: {}, orgMap: {}, config: {}
+    erpMeta: {}, erpRev: {}, erpSga: {}, orgMap: {}, config: {}, submit: {}, submitReady: null
   };
 
   function key() { return Array.prototype.join.call(arguments, '|'); }
@@ -66,6 +66,7 @@
 
   function load(year) {
     S.year = year;
+    S.submitReady = null;
     var lo = mOf(year, 1), hi = mOf(year, 12);
     var range = 'm=gte.' + lo + '&m=lte.' + hi;
 
@@ -77,7 +78,10 @@
       getAll('mp_notes?select=id,kind,m,team,sec,item,k,body&' + range),
       getAll('mp_erp_meta?select=m,rev_cnt,sga_cnt&' + range),
       getAll('mp_org_map?select=org,org6'),
-      getAll('mp_config?select=key,val')
+      getAll('mp_config?select=key,val'),
+      /* 이 표는 나중에 추가됐다. 아직 없는 환경에서도 나머지는 떠야 한다. */
+      getAll('mp_submit?select=m,team,k,submitted_at,email,sig&' + range)
+        .catch(function () { S.submitReady = false; return []; })
     ]).then(function (r) {
       S.periods = {}; r[0].forEach(function (p) { S.periods[p.m] = p; });
       S.plan = {}; r[1].forEach(function (x) { S.plan[key(x.m, x.team, x.sec, x.item)] = Number(x.val); });
@@ -87,6 +91,8 @@
       S.erpMeta = {}; r[5].forEach(function (x) { S.erpMeta[x.m] = x; });
       S.orgMap = {}; r[6].forEach(function (x) { S.orgMap[x.org] = x.org6; });
       S.config = {}; r[7].forEach(function (x) { S.config[x.key] = x.val; });
+      S.submit = {}; (r[8] || []).forEach(function (x) { S.submit[key(x.m, x.team, x.k)] = x; });
+      if (S.submitReady !== false) S.submitReady = true;
       return S;
     });
   }
@@ -140,6 +146,27 @@
   }
   function notesOf(kind, m) {
     return S.notes.filter(function (n) { return n.kind === kind && (m == null || n.m === m); });
+  }
+
+  /* ---------- 작성 완료(제출) ----------
+     값은 입력하는 즉시 저장된다. 이건 «다 썼다»는 선언이다. */
+  function submitOf(m, team, k) { return S.submit[key(m, team, k)] || null; }
+
+  function setSubmit(m, team, k, sig) {
+    var me = MpAuth.me() || {};
+    var row = { m: m, team: team, k: k, submitted_at: new Date().toISOString(),
+                submitted_by: me.id || null, email: me.email || null, sig: sig || null };
+    return send('mp_submit?on_conflict=m,team,k', {
+      method: 'POST', headers: PREF, body: JSON.stringify([row])
+    }).then(function () { S.submit[key(m, team, k)] = row; return row; });
+  }
+
+  function unsubmit(m, team, k) {
+    var old = S.submit[key(m, team, k)];
+    delete S.submit[key(m, team, k)];
+    return send('mp_submit?m=eq.' + m + '&team=eq.' + encodeURIComponent(team) + '&k=eq.' + k,
+      { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+      .catch(function (e) { if (old) S.submit[key(m, team, k)] = old; throw e; });
   }
 
   function gpRate() {
@@ -323,6 +350,7 @@
     mOf: mOf, moOf: moOf, yOf: yOf,
     periodOf: periodOf, weeksOf: weeksOf, stateOf: stateOf, isFinal: isFinal, isOpen: isOpen,
     planVal: planVal, weekVal: weekVal, detailOf: detailOf, notesOf: notesOf,
+    submitOf: submitOf, setSubmit: setSubmit, unsubmit: unsubmit,
     gpRate: gpRate,
     teamName: function (t) { return TEAM_LABEL[t] || t; },
     erpMonths: function () { return Object.keys(S.erpMeta).map(Number).sort(function (a, b) { return a - b; }); }

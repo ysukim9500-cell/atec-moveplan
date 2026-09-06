@@ -96,6 +96,11 @@
             <span class="chip" id="plState"></span>
             <span class="chip" id="plSave">저장됨</span></div>
         </div>
+        <div id="plSubmit" class="hide">
+          <span class="slabel">작성 완료</span>
+          <span id="plSubmitInfo" class="sinfo"></span>
+          <button class="btn" id="btnPlSubmit">작성 완료</button>
+        </div>
         <div id="plNote" class="hide"></div>
         <div class="card">
           <div class="hd"><div><h3 id="plTitle"></h3>
@@ -124,6 +129,14 @@
             이 표가 그대로 «이동계획차이» 엑셀이 됩니다.</div></div></div>
           <div class="bd" style="padding:0">
             <div class="tbl-wrap" style="max-height:none"><table class="t" id="tblWeekSum"></table></div>
+          </div></div>
+
+        <div class="sec-title"><h2>팀별 작성 현황</h2><span id="submitSub"></span></div>
+        <div class="card" id="cardSubmit"><div class="hd"><div><h3>누가 어디까지 냈는지</h3>
+          <div class="desc">값은 입력하는 즉시 저장됩니다. 이 표는 팀장이 <b>«다 썼다»고 선언</b>했는지를 봅니다 ·
+            <b>✓</b> 제출 · <b>·</b> 값은 있으나 제출 전 · <b>–</b> 비어 있음 · 시각은 한국시간</div></div></div>
+          <div class="bd" style="padding:0">
+            <div class="tbl-wrap"><table class="t" id="tblSubmit"></table></div>
           </div></div>
 
         <div class="sec-title"><h2>주차 흐름</h2><span id="wkScope"></span></div>

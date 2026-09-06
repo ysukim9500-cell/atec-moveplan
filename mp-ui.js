@@ -37,6 +37,46 @@
   function dcls(v) { return (v == null || isNaN(v) || Math.abs(v) < 0.05) ? 'flat' : (v > 0 ? 'up' : 'down'); }
   function pct(v) { return (v == null || isNaN(v) || !isFinite(v)) ? '–' : Math.round(v * 100) + '%'; }
 
+  /* ---------- 시각 ----------
+     언제나 한국 시간으로 보인다. 서버는 UTC 로 주고 PC 시간대는 어긋나 있을 수 있다.
+     보는 사람마다 보고서의 시각이 다르면 안 되므로 브라우저 설정을 따르지 않는다. */
+  var KST_MIN = 9 * 60;
+  function p2(n) { return (n < 10 ? '0' : '') + n; }
+
+  /** 어떤 시각이든 «한국 시간의 벽시계 값»을 가진 Date 로 바꾼다 */
+  function kst(v) {
+    var d = (v == null) ? new Date() : (v instanceof Date ? v : new Date(v));
+    if (isNaN(d.getTime())) return null;
+    return new Date(d.getTime() + (KST_MIN + d.getTimezoneOffset()) * 60000);
+  }
+  /** 2026-09-07 · sep 로 구분자를 바꾼다 ('' 이면 20260907) */
+  function ymd(v, sep) {
+    var d = kst(v); if (!d) return '';
+    sep = (sep == null) ? '-' : sep;
+    return d.getFullYear() + sep + p2(d.getMonth() + 1) + sep + p2(d.getDate());
+  }
+  /** 2026-09-07 14:30 */
+  function ymdhm(v) {
+    var d = kst(v); if (!d) return '';
+    return ymd(v) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
+  }
+  /** 방금 · 12분 전 · 3시간 전 · 어제 14:30 · 9/5 14:30 */
+  function ago(v) {
+    var d = (v instanceof Date) ? v : new Date(v);
+    if (isNaN(d.getTime())) return '';
+    var s = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (s < 0) s = 0;
+    if (s < 60) return '방금';
+    if (s < 3600) return Math.floor(s / 60) + '분 전';
+    if (s < 86400) return Math.floor(s / 3600) + '시간 전';
+    var a = kst(v), b = kst(new Date());
+    var days = Math.round((new Date(b.getFullYear(), b.getMonth(), b.getDate()) -
+                           new Date(a.getFullYear(), a.getMonth(), a.getDate())) / 86400000);
+    if (days === 1) return '어제 ' + p2(a.getHours()) + ':' + p2(a.getMinutes());
+    if (days < 7) return days + '일 전';
+    return (a.getMonth() + 1) + '/' + a.getDate() + ' ' + p2(a.getHours()) + ':' + p2(a.getMinutes());
+  }
+
   function niceMax(v) {
     if (!(v > 0)) return 10;
     var p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
@@ -222,6 +262,7 @@
   global.MpUI = {
     C: C, SIGN: SIGN, $: $, $$: $$,
     esc: esc, fmt: fmt, fmt0: fmt0, sgn: sgn, dcls: dcls, pct: pct, niceMax: niceMax,
+    kst: kst, ymd: ymd, ymdhm: ymdhm, ago: ago,
     tabs: tabs, lineChart: lineChart, barsH: barsH, legend: legend,
     tipShow: tipShow, tipHide: tipHide
   };

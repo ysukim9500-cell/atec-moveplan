@@ -83,12 +83,10 @@
     var p = K.sumMetrics(ms, team, 'plan') || {};
 
     /* ---- 표제 ---- */
-    var now = new Date();
     $('#rpTitle').textContent = D.teamName(team) + ' 이동계획 · ' + YEAR + '년 ' + scopeLabel();
     $('#rpStamp').innerHTML =
       '기준 ' + D.moOf(S.m) + '월 · ' + esc(scopeLabel()) +
-      ' · 작성 ' + now.getFullYear() + '-' + p2(now.getMonth() + 1) + '-' + p2(now.getDate()) +
-      ' ' + p2(now.getHours()) + ':' + p2(now.getMinutes()) +
+      ' · 작성 ' + U.ymdhm() + ' (KST)' +
       ' · ' + esc((MpAuth.me() || {}).name || '');
     $('#rpBasis').innerHTML = basisNote(b, ms);
 
@@ -285,7 +283,7 @@
       var head = [
         [D.teamName(S.team) + ' 이동계획 · ' + YEAR + '년 ' + scopeLabel()],
         [$('#rpBasis').textContent],
-        ['단위 : 백만원 · 작성 ' + new Date().toISOString().slice(0, 16).replace('T', ' ')],
+        ['단위 : 백만원 · 작성 ' + U.ymdhm() + ' (KST)'],
         []
       ];
       var add = function (name, sel) {
@@ -297,7 +295,7 @@
       add('팀별', '#tblRpTeam');
       add('변동사유', '#tblRpNote');
       XLSX.writeFile(wb, '이동계획_리포트_' + YEAR + '_' + scopeLabel().replace(/[~ ]/g, '') + '_' +
-        new Date().toISOString().slice(2, 10).replace(/-/g, '') + '.xlsx');
+        U.ymd(null, '').slice(2) + '.xlsx');
       b.disabled = false; b.textContent = '엑셀 내려받기';
     }).catch(function (e) {
       alert(e.message);

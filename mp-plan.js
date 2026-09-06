@@ -63,12 +63,20 @@
       S.m = v; S.week = Math.max(0, K.finalK(v, S.team)); render();
     });
     U.tabs($('#plTeam'), [{ id: D.TOTAL, label: '사업부 합계' }].concat(
-      D.TEAMS.map(function (t) { return { id: t, label: D.teamName(t) }; })
+      D.TEAMS.map(function (t) {
+        /* 이 주차를 낸 팀은 표시해 둔다 — 취합하는 쪽이 한눈에 본다 */
+        var sb = D.submitOf(m, t, S.week);
+        return { id: t, label: D.teamName(t), mark: sb ? '✓' : '',
+                 title: sb ? U.ymdhm(sb.submitted_at) + ' 제출' : '미제출' };
+      })
     ), team, function (v) { S.team = v; render(); });
 
     var wl = [];
     for (var i = 0; i < nW; i++) {
-      wl.push({ id: i, label: (i + 1) + '주', mark: i === K.finalK(m, team) ? '●' : '' });
+      var sb = (team === D.TOTAL) ? null : D.submitOf(m, team, i);
+      wl.push({ id: i, label: (i + 1) + '주',
+                mark: sb ? '✓' : (i === K.finalK(m, team) ? '●' : ''),
+                title: sb ? U.ymdhm(sb.submitted_at) + ' 제출' : '' });
     }
     U.tabs($('#plWeek'), wl, S.week, function (v) { S.week = v; render(); });
 
@@ -102,6 +110,7 @@
     }
 
     $('#plTitle').textContent = D.teamName(team) + ' · ' + D.yOf(m) + '년 ' + D.moOf(m) + '월 이동계획';
+    renderSubmit();
     buildTable(m, team, nW);
     bind();
   }
@@ -337,6 +346,109 @@
     flash.t = setTimeout(function () { el.className = 'chip'; el.textContent = '저장됨'; }, 2200);
   }
   function fail(e) { flash(e.message || '저장 실패', true); render(); }
+
+  /* ==========================================================================
+   * 작성 완료 (제출)
+   *
+   * 값은 칸을 떠날 때마다 이미 저장된다. 이 버튼은 «다 썼다»는 선언이다.
+   * 취합하는 쪽은 숫자가 들어왔는지가 아니라 팀장이 끝냈다고 했는지를 알아야 한다.
+   * ======================================================================== */
+
+  /** 제출 당시 값의 지문. 제출한 뒤 숫자가 바뀌면 달라진다. */
+  function weekSig(m, team, k) {
+    var parts = [];
+    D.SEC_ORDER.concat(['공판']).forEach(function (sec) {
+      (D.LEAF[sec] || []).forEach(function (it) {
+        var v = D.weekVal(m, team, sec, it, k);
+        if (v != null) parts.push(sec + '.' + it + '=' + v);
+      });
+    });
+    var s = parts.join('|'), h = 5381;
+    for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    return parts.length + ':' + (h >>> 0).toString(36);
+  }
+
+  /** 제출할 수 있는 상태인가 — 최소한 매출과 판관비는 채워져 있어야 한다 */
+  function ready(m, team, k) {
+    return K.V(m, team, '매출', '합계', k) != null &&
+           K.V(m, team, '판관비', '합계', k) != null;
+  }
+
+  function submitState() {
+    var m = S.m, team = S.team, k = S.week;
+    if (team === D.TOTAL || D.S.submitReady === false) return { hide: true };
+    var sub = D.submitOf(m, team, k);
+    var mine = MpAuth.canWriteTeam(team) && D.isOpen(m);
+    if (!ready(m, team, k)) {
+      return { label: '작성 완료', on: false, sub: sub,
+               why: '매출과 판관비를 채우면 누를 수 있습니다' };
+    }
+    if (!sub) return { label: '작성 완료', on: mine, cls: 'red', sub: null };
+    if (sub.sig && sub.sig !== weekSig(m, team, k)) {
+      return { label: '다시 제출', on: mine, cls: 'red', changed: true, sub: sub };
+    }
+    return { label: '제출 취소', on: mine, cls: 'dark', done: true, sub: sub };
+  }
+
+  function renderSubmit() {
+    var box = $('#plSubmit'), btn = $('#btnPlSubmit'), st = submitState();
+    if (st.hide) { box.className = 'hide'; return; }
+    box.className = 'subbar';
+    btn.textContent = st.label;
+    btn.className = 'btn ' + (st.cls || '');
+    btn.disabled = !st.on;
+    btn.title = st.why || '';
+
+    var info = $('#plSubmitInfo');
+    if (!st.sub) {
+      info.className = 'sinfo';
+      info.textContent = st.why || '아직 제출하지 않았습니다';
+    } else if (st.changed) {
+      info.className = 'sinfo chg';
+      info.innerHTML = '<b>제출 후 값이 바뀌었습니다</b> · 마지막 제출 ' +
+        U.ymdhm(st.sub.submitted_at) + ' (' + U.ago(st.sub.submitted_at) + ')' +
+        (st.sub.email ? ' · ' + esc(st.sub.email) : '');
+    } else {
+      info.className = 'sinfo ok';
+      info.innerHTML = '<b>작성 완료</b> · ' + U.ymdhm(st.sub.submitted_at) +
+        ' (' + U.ago(st.sub.submitted_at) + ')' +
+        (st.sub.email ? ' · ' + esc(st.sub.email) : '');
+    }
+    btn.onclick = function () { if (st.done) cancelSubmit(); else doSubmit(st.changed); };
+  }
+
+  function doSubmit(again) {
+    var m = S.m, team = S.team, k = S.week;
+    var f = function (x) { return x == null ? '–' : U.fmt(x); };
+    if (!window.confirm(
+      D.teamName(team) + ' · ' + D.moOf(m) + '월 ' + (k + 1) + '주\n' +
+      (again ? '수정한 내용으로 다시 제출합니다.\n' : '작성 완료로 제출합니다.\n') +
+      '\n  매출            ' + f(K.V(m, team, '매출', '합계', k)) +
+      '\n  매출이익        ' + f(K.V(m, team, '매출이익', '합계', k)) +
+      '\n  판관비          ' + f(K.V(m, team, '판관비', '합계', k)) +
+      '\n  공판후영업이익  ' + f(K.V(m, team, '공판후영업이익', '계', k)) +
+      '\n\n제출 시각이 기록되고 경영지원팀이 확인합니다.\n' +
+      '제출한 뒤에도 달이 열려 있는 동안은 고칠 수 있습니다.')) return;
+
+    D.setSubmit(m, team, k, weekSig(m, team, k))
+      .then(function () {
+        return D.audit('작성 완료', { m: m, team: team, ref: (k + 1) + '주', after: again ? '재제출' : '제출' });
+      })
+      .then(function () { flash('제출했습니다'); render(); })
+      .catch(fail);
+  }
+
+  function cancelSubmit() {
+    var m = S.m, team = S.team, k = S.week;
+    if (!window.confirm(D.teamName(team) + ' · ' + D.moOf(m) + '월 ' + (k + 1) + '주\n\n' +
+      '작성 완료를 취소합니다. 기록된 제출 시각이 지워집니다.')) return;
+    D.unsubmit(m, team, k)
+      .then(function () {
+        return D.audit('작성 완료 취소', { m: m, team: team, ref: (k + 1) + '주', after: '취소' });
+      })
+      .then(function () { flash('제출을 취소했습니다'); render(); })
+      .catch(fail);
+  }
 
   /* 상세를 고치면 그 항목의 기준 주차 값도 소계로 맞춘다 */
   function syncSub(sec, item) {

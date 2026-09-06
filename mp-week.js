@@ -68,6 +68,7 @@
     $('#wkSumTitle').textContent = '월별 변동 요약 · ' + D.teamName(team);
 
     renderSummary(team);
+    renderSubmits(m);
     renderMatrix(m);
     renderTrend(m, team);
   }
@@ -160,6 +161,37 @@
   }
 
   /* ---------- 팀 × 주차 매트릭스 ---------- */
+  /* ---------- 팀별 작성 현황 ----------
+     숫자가 들어왔는지가 아니라 팀장이 «다 썼다»고 했는지를 본다.
+     값은 입력하는 즉시 저장되므로 숫자만 봐서는 작성 중인지 끝난 건지 알 수 없다. */
+  function renderSubmits(m) {
+    var card = $('#cardSubmit');
+    if (D.S.submitReady === false) { card.className = 'hide'; return; }
+    card.className = 'card';
+    var nW = D.weeksOf(m), done = 0, total = 0;
+    var h = '<thead><tr><th style="width:170px">팀</th>';
+    for (var k = 0; k < nW; k++) h += '<th class="c">' + (k + 1) + '주</th>';
+    h += '<th>마지막 제출</th></tr></thead><tbody>';
+    D.TEAMS.forEach(function (t) {
+      h += '<tr><td>' + esc(D.teamName(t)) + '</td>';
+      var last = null;
+      for (var k = 0; k < nW; k++) {
+        var sb = D.submitOf(m, t, k);
+        var has = K.V(m, t, '매출', '합계', k) != null;
+        total++;
+        if (sb) { done++; if (!last || sb.submitted_at > last.submitted_at) last = sb; }
+        h += '<td class="c">' + (sb
+          ? '<span class="sdot ok" title="' + esc(U.ymdhm(sb.submitted_at) + (sb.email ? ' · ' + sb.email : '')) + '">✓</span>'
+          : (has ? '<span class="sdot mid" title="값은 있으나 제출 전">·</span>'
+                 : '<span class="sdot" title="비어 있음">–</span>')) + '</td>';
+      }
+      h += '<td class="q">' + (last ? esc(U.ymdhm(last.submitted_at)) + ' <span class="q">(' + esc(U.ago(last.submitted_at)) + ')</span>' +
+            (last.email ? ' · ' + esc(last.email) : '') : '<span class="zero">–</span>') + '</td></tr>';
+    });
+    $('#tblSubmit').innerHTML = h + '</tbody>';
+    $('#submitSub').textContent = D.moOf(m) + '월 · ' + D.TEAMS.length + '팀 × ' + nW + '주 중 ' + done + '건 제출';
+  }
+
   function renderMatrix(m) {
     var nW = D.weeksOf(m);
     var h = '<thead><tr><th>팀</th><th class="n">월간계획</th>';
@@ -214,7 +246,7 @@
     loadXlsx().then(function () {
       var rows = summaryRows(S.team);
       var aoa = [['고객지원사업부 이동계획 변동 — ' + D.teamName(S.team)],
-                 ['단위 : 백만원', '기준 ' + new Date().toISOString().slice(0, 10)], [],
+                 ['단위 : 백만원', '기준 ' + U.ymd() + ' (KST)'], [],
                  ['월', '항목', '월간계획', '전주', '금주', '전주 대비', '계획 대비', '변동 사유']];
       rows.forEach(function (r, i) {
         aoa.push([i % 3 === 0 ? (D.moOf(r.m) + '월') : '', r.item,
@@ -227,7 +259,7 @@
       ws['!cols'] = [{ wch: 7 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 46 }];
       var wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, '이동계획차이');
-      XLSX.writeFile(wb, '이동계획차이_' + new Date().toISOString().slice(2, 10).replace(/-/g, '') + '.xlsx');
+      XLSX.writeFile(wb, '이동계획차이_' + U.ymd(null, '') .slice(2) + '.xlsx');
       b.disabled = false; b.textContent = '엑셀 내보내기';
     }).catch(function (e) {
       b.disabled = false; b.textContent = '엑셀 내보내기';
