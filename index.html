@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATEC 이동계획 · 로그인</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="auth-wrap">
+  <div class="auth">
+
+    <div class="brand">
+      <div class="mark">A</div>
+      <h1>고객지원사업부 이동계획</h1>
+      <p>ATEC Mobility · 월간 이동계획 및 ERP 실적 관리</p>
+    </div>
+
+    <div class="panel">
+
+      <!-- ===== 로그인 / 가입 ===== -->
+      <div id="stage-login">
+        <div class="tabs">
+          <button id="tabLogin" class="on">로그인</button>
+          <button id="tabSignup">회원가입</button>
+        </div>
+
+        <div id="msg"></div>
+
+        <!-- 로그인 -->
+        <form id="formLogin">
+          <div class="fld">
+            <label for="liEmail">이메일</label>
+            <input id="liEmail" type="email" autocomplete="username" required>
+          </div>
+          <div class="fld">
+            <label for="liPw">비밀번호</label>
+            <input id="liPw" type="password" autocomplete="current-password" required>
+          </div>
+          <button type="submit" class="btn red wide" id="btnLogin">로그인</button>
+        </form>
+
+        <!-- 가입 -->
+        <form id="formSignup" class="hide">
+          <div class="fld">
+            <label for="suName">이름</label>
+            <input id="suName" type="text" autocomplete="name" required>
+          </div>
+          <div class="fld">
+            <label for="suEmail">이메일</label>
+            <input id="suEmail" type="email" autocomplete="username" required>
+          </div>
+          <div class="fld">
+            <label for="suPw">비밀번호</label>
+            <input id="suPw" type="password" autocomplete="new-password" minlength="8" required>
+            <div class="hint">8자 이상. 재무 자료를 다루므로 사내 다른 서비스와 다른 비밀번호를 쓰시길 권합니다.</div>
+          </div>
+          <button type="submit" class="btn red wide" id="btnSignup">가입 신청</button>
+          <div class="note info" style="margin:14px 0 0">
+            가입하면 경영지원팀 승인을 거쳐야 들어올 수 있습니다.
+            승인할 때 소속 팀이 함께 지정됩니다.
+          </div>
+        </form>
+      </div>
+
+      <!-- ===== 2단계 인증 · 최초 등록 ===== -->
+      <div id="stage-enroll" class="hide otp-box">
+        <h3 style="margin:0 0 6px;font-size:15px">2단계 인증 등록</h3>
+        <p class="desc" style="margin:0 0 15px">
+          이동계획 자료는 2단계 인증을 통과해야 열립니다. 최초 1회만 등록하면 됩니다.
+        </p>
+
+        <ol class="steps">
+          <li>휴대폰에 <b>Google Authenticator</b> 앱을 설치합니다.</li>
+          <li>앱에서 <b>+</b> → <b>QR 코드 스캔</b>으로 아래 코드를 찍습니다.</li>
+          <li>앱에 뜬 6자리 숫자를 아래에 입력합니다.</li>
+        </ol>
+
+        <div class="otp-qr" id="qrBox"></div>
+
+        <div class="desc" style="margin-bottom:5px">QR을 찍을 수 없으면 이 키를 앱에 직접 입력하세요</div>
+        <div class="otp-secret" id="otpSecret">—</div>
+
+        <div id="msgEnroll"></div>
+        <input id="enrollCode" class="otp-code" inputmode="numeric" maxlength="6" placeholder="······" autocomplete="one-time-code">
+        <button class="btn red wide" id="btnEnrollVerify" style="margin-top:13px">등록 완료</button>
+        <button class="btn ghost wide" id="btnEnrollCancel" style="margin-top:7px">취소하고 로그아웃</button>
+      </div>
+
+      <!-- ===== 2단계 인증 · 코드 입력 ===== -->
+      <div id="stage-verify" class="hide otp-box">
+        <h3 style="margin:0 0 6px;font-size:15px">2단계 인증</h3>
+        <p class="desc" style="margin:0 0 17px">
+          Google Authenticator 앱에 표시된 6자리 숫자를 입력하세요.
+        </p>
+
+        <div id="msgVerify"></div>
+        <input id="verifyCode" class="otp-code" inputmode="numeric" maxlength="6" placeholder="······" autocomplete="one-time-code">
+        <button class="btn red wide" id="btnVerify" style="margin-top:13px">확인</button>
+        <button class="btn ghost wide" id="btnVerifyCancel" style="margin-top:7px">다른 계정으로 로그인</button>
+      </div>
+
+    </div>
+
+    <div class="foot">
+      ATEC Mobility 고객지원사업부<br>
+      계정 문의 · 경영지원팀
+    </div>
+
+  </div>
+</div>
+
+<script src="mp-auth.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (s) { return document.querySelector(s); };
+
+  function show(stage) {
+    ['login', 'enroll', 'verify'].forEach(function (s) {
+      $('#stage-' + s).classList.toggle('hide', s !== stage);
+    });
+  }
+  function say(where, text, kind) {
+    var el = $(where);
+    if (!text) { el.innerHTML = ''; return; }
+    el.innerHTML = '<div class="note ' + (kind || 'err') + '">' + text + '</div>';
+  }
+  function busy(btn, on, label) {
+    btn.disabled = on;
+    if (on) { btn.dataset.t = btn.textContent; btn.textContent = label || '처리 중…'; }
+    else if (btn.dataset.t) { btn.textContent = btn.dataset.t; }
+  }
+
+  /* ---------- 로그인 / 가입 탭 ---------- */
+  $('#tabLogin').onclick = function () {
+    $('#tabLogin').classList.add('on'); $('#tabSignup').classList.remove('on');
+    $('#formLogin').classList.remove('hide'); $('#formSignup').classList.add('hide');
+    say('#msg', '');
+  };
+  $('#tabSignup').onclick = function () {
+    $('#tabSignup').classList.add('on'); $('#tabLogin').classList.remove('on');
+    $('#formSignup').classList.remove('hide'); $('#formLogin').classList.add('hide');
+    say('#msg', '');
+  };
+
+  /* ---------- 가입 ---------- */
+  $('#formSignup').onsubmit = function (e) {
+    e.preventDefault();
+    var b = $('#btnSignup');
+    busy(b, true);
+    MpAuth.signup($('#suEmail').value, $('#suPw').value, $('#suName').value)
+      .then(function (r) {
+        busy(b, false);
+        if (r.error) { say('#msg', r.error); return; }
+        say('#msg', '가입 신청이 접수되었습니다. 경영지원팀 승인 후 로그인할 수 있습니다.', 'ok');
+        $('#formSignup').reset();
+      });
+  };
+
+  /* ---------- 로그인 ---------- */
+  $('#formLogin').onsubmit = function (e) {
+    e.preventDefault();
+    var b = $('#btnLogin');
+    busy(b, true, '확인 중…');
+    MpAuth.login($('#liEmail').value, $('#liPw').value)
+      .then(function (r) {
+        if (r.error) { busy(b, false); say('#msg', r.error); return; }
+        return MpAuth.mfaState().then(function (st) {
+          busy(b, false);
+          if (st === 'ok') { location.replace('app.html'); return; }
+          if (st === 'need') { show('verify'); setTimeout(function () { $('#verifyCode').focus(); }, 60); return; }
+          startEnroll();
+        });
+      });
+  };
+
+  /* ---------- 2단계 · 최초 등록 ---------- */
+  function startEnroll() {
+    show('enroll');
+    say('#msgEnroll', '');
+    $('#qrBox').innerHTML = '<div class="desc" style="width:172px;height:172px;display:flex;align-items:center;justify-content:center">준비 중…</div>';
+    MpAuth.enroll().then(function (r) {
+      if (r.error) { say('#msgEnroll', r.error); $('#qrBox').innerHTML = ''; return; }
+      // Supabase 가 QR 을 SVG 로 내려준다. 없으면 키 직접 입력으로 안내한다.
+      if (r.qr) {
+        $('#qrBox').innerHTML = /^data:/.test(r.qr)
+          ? '<img alt="2단계 인증 QR" src="' + r.qr + '">'
+          : r.qr;
+      } else {
+        $('#qrBox').innerHTML = '<div class="desc" style="width:172px;display:flex;align-items:center;justify-content:center;height:172px">아래 키를 직접 입력하세요</div>';
+      }
+      $('#otpSecret').textContent = r.secret || '—';
+      setTimeout(function () { $('#enrollCode').focus(); }, 60);
+    });
+  }
+
+  $('#btnEnrollVerify').onclick = function () {
+    var b = this;
+    busy(b, true, '확인 중…');
+    MpAuth.verify($('#enrollCode').value).then(function (r) {
+      busy(b, false);
+      if (r.error) { say('#msgEnroll', r.error); $('#enrollCode').select(); return; }
+      location.replace('app.html');
+    });
+  };
+  $('#btnEnrollCancel').onclick = function () { MpAuth.logout(); show('login'); };
+
+  /* ---------- 2단계 · 코드 입력 ---------- */
+  $('#btnVerify').onclick = function () {
+    var b = this;
+    busy(b, true, '확인 중…');
+    MpAuth.verify($('#verifyCode').value).then(function (r) {
+      busy(b, false);
+      if (r.error) { say('#msgVerify', r.error); $('#verifyCode').select(); return; }
+      location.replace('app.html');
+    });
+  };
+  $('#btnVerifyCancel').onclick = function () { MpAuth.logout(); show('login'); };
+
+  /* 6자리를 다 넣으면 자동으로 확인한다 */
+  ['#enrollCode', '#verifyCode'].forEach(function (sel) {
+    $(sel).addEventListener('input', function () {
+      this.value = this.value.replace(/\D/g, '');
+      if (this.value.length === 6) {
+        (sel === '#enrollCode' ? $('#btnEnrollVerify') : $('#btnVerify')).click();
+      }
+    });
+  });
+
+  /* ---------- 이미 로그인돼 있으면 건너뛴다 ---------- */
+  if (MpAuth.token()) {
+    MpAuth.mfaState().then(function (st) {
+      if (st === 'ok') location.replace('app.html');
+      else if (st === 'need') show('verify');
+    });
+  }
+})();
+</script>
+
+</body>
+</html>

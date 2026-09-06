@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ATEC 이동계획</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+<style>
+/* 앱 껍데기 — 화면이 붙기 전까지의 최소 레이아웃 */
+.app{display:flex;min-height:100vh}
+.rail{width:var(--rail);flex:0 0 var(--rail);background:#333B41;color:#E6EAEC;
+  position:fixed;top:0;bottom:0;left:0;z-index:60;display:flex;flex-direction:column}
+.rail .brand{padding:18px;border-bottom:1px solid rgba(255,255,255,.09)}
+.rail .brand b{display:block;font-size:14px;color:#fff}
+.rail .brand span{display:block;margin-top:6px;font-size:11px;color:#A9B2B8;line-height:1.5}
+.nav{padding:10px 8px;flex:1;overflow:auto}
+.nav .grp{font-size:11px;color:#828D94;padding:14px 10px 5px;font-weight:700}
+.nav button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;
+  color:#CDD4D8;text-align:left;padding:9px 11px;border-radius:6px;margin:1px 0;cursor:pointer;
+  font-weight:600;font-size:13px;border-left:3px solid transparent}
+.nav button:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav button.on{background:rgba(255,255,255,.10);color:#fff;border-left-color:var(--red);font-weight:700}
+.nav button:disabled{opacity:.38;cursor:not-allowed}
+.railfoot{padding:12px 16px 15px;font-size:11px;color:#8B959B;line-height:1.65;
+  border-top:1px solid rgba(255,255,255,.08)}
+.railfoot b{color:#C4CBD0}
+.main{margin-left:var(--rail);width:calc(100% - var(--rail));min-width:0}
+header.top{height:var(--hdr);background:var(--paper);border-bottom:1px solid var(--rule);
+  display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 20px;
+  position:sticky;top:0;z-index:50}
+header.top b{font-size:19px;font-weight:700;letter-spacing:-.4px}
+.content{padding:18px 20px 60px;max-width:1760px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+table.chk{width:100%;border-collapse:collapse;font-size:12.5px}
+table.chk th,table.chk td{padding:8px 10px;border-bottom:1px solid var(--rule2);text-align:left}
+table.chk th{background:var(--soft);color:var(--muted);font-size:11px;font-weight:700}
+table.chk td.v{text-align:right;font-family:var(--num);white-space:nowrap}
+.pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
+.pill.ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-line)}
+.pill.no{background:#FDEEF2;color:var(--red-d);border:1px solid var(--red-line)}
+.pill.wait{background:var(--g1);color:var(--muted);border:1px solid var(--g2)}
+@media (max-width:900px){
+  .rail{display:none}
+  .main{margin-left:0;width:100%}
+  .grid2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="rail">
+    <div class="brand">
+      <b>고객지원사업부</b>
+      <span>이동계획 · ERP 실적</span>
+    </div>
+    <nav class="nav">
+      <div class="grp">현황</div>
+      <button data-p="home" class="on">연결 · 권한 점검</button>
+      <button data-p="dash" disabled>경영현황 대시보드</button>
+      <div class="grp">계획 관리</div>
+      <button data-p="plan" disabled>월별 이동계획</button>
+      <button data-p="week" disabled>주차별 변동 관리</button>
+      <button data-p="aux"  disabled>이동계획 부속 시트</button>
+      <div class="grp">실적 검토</div>
+      <button data-p="erp"  disabled>확정 판관비/매출현황</button>
+      <div class="grp">데이터</div>
+      <button data-p="admin" disabled>설정 · 데이터 관리</button>
+    </nav>
+    <div class="railfoot">
+      단위 <b>백만원</b><br>
+      <span id="whoFoot">—</span>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <b id="pgTitle">연결 · 권한 점검</b>
+      <div style="display:flex;gap:7px;align-items:center">
+        <span class="chip" id="chipWho">—</span>
+        <button class="btn" id="btnLogout">로그아웃</button>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="note info">
+        아직 화면이 붙기 전 단계입니다. 이 페이지는 <b>서버 연결과 권한 차단이 설계대로 동작하는지</b>를 실제로 확인합니다.
+        여기가 전부 통과해야 그 위에 화면을 올립니다.
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <div class="hd"><div><h3>내 계정</h3>
+            <div class="desc">서버가 알려준 값입니다. 화면에 저장된 값이 아닙니다.</div></div></div>
+          <div class="bd"><table class="chk"><tbody id="tblMe"></tbody></table></div>
+        </div>
+
+        <div class="card">
+          <div class="hd"><div><h3>권한 차단 점검</h3>
+            <div class="desc">RLS 를 직접 때려 봅니다. <b>거부되어야 정상</b>인 항목이 섞여 있습니다.</div></div>
+            <button class="btn" id="btnRecheck">다시 점검</button></div>
+          <div class="bd"><table class="chk">
+            <thead><tr><th>점검 항목</th><th style="width:96px">기대</th><th style="width:96px">결과</th></tr></thead>
+            <tbody id="tblChk"></tbody></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="mp-auth.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+
+  var TEAMS = ['광역버스사업팀','택시지원팀','리페어팀','수도권버스지원팀','AFC지원파트','실공통'];
+
+  MpAuth.requireAuth().then(function (p) {
+    renderMe(p);
+    runChecks(p);
+  }).catch(function () { /* requireAuth 가 로그인 화면으로 보낸다 */ });
+
+  $('#btnLogout').onclick = function () { MpAuth.logout(); location.replace('index.html'); };
+  $('#btnRecheck').onclick = function () { runChecks(MpAuth.me()); };
+
+  function renderMe(p) {
+    var rows = [
+      ['이름', p.name],
+      ['이메일', p.email],
+      ['승인 상태', p.status],
+      ['이동계획 역할', p.mpRole || '(미지정)'],
+      ['소속 팀', p.team || '(미지정)'],
+      ['인증 단계', MpAuth.aal() + (MpAuth.isAal2() ? ' · 2단계 통과' : ' · 2단계 미통과')]
+    ];
+    $('#tblMe').innerHTML = rows.map(function (r) {
+      return '<tr><th style="width:120px">' + r[0] + '</th><td>' + esc(r[1]) + '</td></tr>';
+    }).join('');
+    $('#chipWho').innerHTML = esc(p.name) + ' · <b>' + esc(p.team || '—') + '</b>';
+    $('#whoFoot').innerHTML = esc(p.mpRole || '—') + ' · <b>' + esc(p.team || '—') + '</b>';
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m];
+    });
+  }
+
+  /* 각 점검은 실제 요청을 보내고, 기대한 대로 허용/거부되는지 본다. */
+  function runChecks(p) {
+    var body = $('#tblChk');
+    var mine = p.team && TEAMS.indexOf(p.team) >= 0 ? p.team : TEAMS[0];
+    var other = TEAMS.filter(function (t) { return t !== mine; })[0];
+    var admin = p.mpRole === 'admin';
+
+    var checks = [
+      { name: '월 개폐 상태 읽기', want: '허용',
+        run: function () { return read('mp_periods?select=m,state&limit=1'); } },
+      { name: '주차별 OL 읽기 (전 팀)', want: '허용',
+        run: function () { return read('mp_week?select=m&limit=1'); } },
+      { name: '설정값 읽기', want: '허용',
+        run: function () { return read('mp_config?select=key&limit=1'); } },
+      { name: '남의 팀(' + other + ') 값 쓰기', want: admin ? '—' : '거부',
+        skip: admin,
+        run: function () { return write(other); } },
+      { name: '닫힌 달에 내 팀 값 쓰기', want: '거부',
+        run: function () { return write(mine, 999999); } },
+      { name: '팀원 목록 수정', want: admin ? '허용' : '거부',
+        run: function () {
+          return MpAuth.rest('mp_members', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=ignore-duplicates' },
+            body: JSON.stringify({ user_id: p.id, team: p.team, mp_role: p.mpRole })
+          }).then(ok);
+        } }
+    ];
+
+    body.innerHTML = checks.map(function (c, i) {
+      return '<tr><td>' + esc(c.name) + '</td><td class="v">' + c.want +
+             '</td><td class="v" id="ck' + i + '"><span class="pill wait">확인 중</span></td></tr>';
+    }).join('');
+
+    checks.forEach(function (c, i) {
+      var cell = $('#ck' + i);
+      if (c.skip) { cell.innerHTML = '<span class="pill wait">해당 없음</span>'; return; }
+      c.run().then(function (allowed) {
+        var want = c.want === '허용';
+        var pass = (allowed === want);
+        cell.innerHTML = '<span class="pill ' + (pass ? 'ok' : 'no') + '">' +
+          (allowed ? '허용됨' : '거부됨') + '</span>';
+      }).catch(function () {
+        cell.innerHTML = '<span class="pill no">오류</span>';
+      });
+    });
+  }
+
+  function read(path) {
+    return MpAuth.rest(path).then(function (r) {
+      if (!r.ok) return false;
+      return r.json().then(function () { return true; });
+    }).catch(function () { return false; });
+  }
+
+  /* 쓰기 점검 — 실제로 한 줄 넣어 본다. 성공하면 바로 지운다. */
+  function write(team, m) {
+    m = (m == null) ? 24320 : m;   // 기본 2026-09
+    var row = { m: m, team: team, sec: '매출', item: '__점검', k: 0, val: 0 };
+    return MpAuth.rest('mp_week', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal,resolution=merge-duplicates' },
+      body: JSON.stringify(row)
+    }).then(function (r) {
+      if (!r.ok) return false;
+      // 넣은 흔적을 남기지 않는다
+      MpAuth.rest('mp_week?m=eq.' + m + '&team=eq.' + encodeURIComponent(team) +
+                  '&sec=eq.' + encodeURIComponent('매출') + '&item=eq.' + encodeURIComponent('__점검'),
+                  { method: 'DELETE' }).catch(function () {});
+      return true;
+    }).catch(function () { return false; });
+  }
+
+  function ok(r) { return r.ok; }
+})();
+</script>
+
+</body>
+</html>

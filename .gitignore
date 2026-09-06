@@ -1,0 +1,9 @@
+# 실 데이터는 저장소에 넣지 않는다
+*.xlsx
+*.xls
+*.csv
+
+# 일회성 이관 스크립트 (실 데이터가 섞인다)
+migrate/
+node_modules/
+.DS_Store
