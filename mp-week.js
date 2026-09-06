@@ -23,8 +23,30 @@
 
   var S = { m: null, team: null };
 
-  function canNote(team) {
-    return team !== D.TOTAL && MpAuth.canWriteTeam(team);
+  /* 사유를 쓸 수 있는가 — 달마다 다르다.
+     «이동계획차이» 원본이 사업부 기준이라 사업부 합계에도 쓸 수 있어야 한다.
+     그건 경영지원팀 몫이다. 팀장은 자기 팀만.
+     실제 차단은 RLS 가 한다 — 여기서는 입력칸을 열지 말지만 정한다. */
+  function canNote(m, team) {
+    if (!D.isOpen(m)) return false;
+    if (team === D.TOTAL) return MpAuth.isAdmin();
+    return MpAuth.canWriteTeam(team);
+  }
+
+  /* 차이표가 다루는 달 — 마감이 끝난 달 다음부터.
+     이미 확정된 과거는 더 변하지 않으므로 표에 올리지 않는다. */
+  function liveMonths() {
+    var lastFinal = -1;
+    for (var mo = 1; mo <= 12; mo++) {
+      var m = D.mOf(2026, mo);
+      if (D.isFinal(m)) lastFinal = m;
+    }
+    var out = [];
+    for (var mo2 = 1; mo2 <= 12; mo2++) {
+      var mm = D.mOf(2026, mo2);
+      if (mm > lastFinal && !D.isFinal(mm)) out.push(mm);
+    }
+    return out;
   }
 
   /** 그 달·그 팀의 [전주, 금주] 주차 인덱스 */
@@ -62,12 +84,11 @@
   /* ---------- 월별 변동 요약 = 이동계획차이 ---------- */
   function summaryRows(team) {
     var out = [];
-    for (var mo = 1; mo <= 12; mo++) {
-      var m = D.mOf(2026, mo);
-      if (D.isFinal(m)) continue;                 /* 확정된 달은 더 변하지 않는다 */
+    liveMonths().forEach(function (m) {
       var p = pair(m, team);
+      var ed = canNote(m, team);
       SERIES.forEach(function (s) {
-        var plan = K.PL(m, team, s.key, s.key === '판관비' ? '합계' : '합계');
+        var plan = K.PL(m, team, s.key, '합계');
         var prv = p.prev < 0 ? null : K.V(m, team, s.key, '합계', p.prev);
         var cur = p.cur < 0 ? null : K.V(m, team, s.key, '합계', p.cur);
         var n = D.findNote('month', m, team, null, s.key, null);
@@ -75,19 +96,20 @@
           m: m, item: s.key, plan: plan, prev: prv, cur: cur,
           dPrev: (prv == null || cur == null) ? null : Math.round((cur - prv) * 10) / 10,
           dPlan: (plan == null || cur == null) ? null : Math.round((cur - plan) * 10) / 10,
-          note: n ? n.body : '', pk: p.prev, ck: p.cur
+          note: n ? n.body : '', pk: p.prev, ck: p.cur, ed: ed, state: D.stateOf(m)
         });
       });
-    }
+    });
     return out;
   }
 
   function renderSummary(team) {
     var rows = summaryRows(team);
-    var editable = canNote(team);
-    $('#wkSumSub').textContent = rows.length
-      ? ('미마감 ' + (rows.length / 3) + '개월 · 사유는 여기서 적습니다' + (editable ? '' : ' (읽기 전용)'))
-      : '미마감 월이 없습니다';
+    var nOpen = rows.filter(function (r) { return r.ed; }).length / 3;
+    var nMon = rows.length / 3;
+    $('#wkSumSub').textContent = !rows.length ? '진행 중인 달이 없습니다'
+      : (nMon + '개월' + (nOpen ? (' · ' + nOpen + '개월 작성 가능')
+          : ' · 열린 달이 없어 읽기 전용입니다'));
 
     var h = '<colgroup><col style="width:56px"><col style="width:82px"><col style="width:92px">' +
       '<col style="width:92px"><col style="width:92px"><col style="width:88px"><col style="width:88px"><col></colgroup>' +
@@ -102,14 +124,15 @@
       var first = i % 3 === 0;
       var wkLb = (r.pk >= 0 ? (r.pk + 1) + '주' : '–') + ' → ' + (r.ck >= 0 ? (r.ck + 1) + '주' : '–');
       h += '<tr class="' + (first ? 'mstart' : '') + (r.m === S.m ? ' msel' : '') + '">';
-      if (first) h += '<td class="sec c" rowspan="3">' + D.moOf(r.m) + '월<span class="mini">' + wkLb + '</span></td>';
+      if (first) h += '<td class="sec c" rowspan="3">' + D.moOf(r.m) + '월<span class="mini">' + wkLb + '</span>' +
+        (r.state === 'open' ? '' : '<span class="mini">마감</span>') + '</td>';
       h += '<td class="' + BAND[r.item] + '">' + r.item + '</td>' +
         '<td class="n gs">' + fmt0(r.plan) + '</td>' +
         '<td class="n">' + fmt0(r.prev) + '</td>' +
         '<td class="n cur"><b>' + fmt0(r.cur) + '</b></td>' +
         '<td class="n gs ' + dcls(r.dPrev) + '">' + sgn(r.dPrev, 0) + '</td>' +
         '<td class="n ' + dcls(r.dPlan) + '">' + sgn(r.dPlan, 0) + '</td>' +
-        '<td class="txt">' + (editable
+        '<td class="txt">' + (r.ed
           ? '<textarea rows="1" class="na" data-mn="' + r.m + '~' + esc(r.item) + '" placeholder="변동 사유">' + esc(r.note) + '</textarea>'
           : (r.note ? esc(r.note) : '<span class="zero">–</span>')) + '</td></tr>';
     });
