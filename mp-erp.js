@@ -614,8 +614,11 @@
       });
     });
     var fl = G.filterItems(items, hasPrev, S.th);
-    $('#sgaDetailNote').innerHTML = '전 팀 · 전 비목을 한 표로 봅니다 · 세부 변동 표시기준 <b>' +
-      S.th + '만원</b> 이상' + (fl.hidN ? ' · 기준 미만 ' + fl.hidN + '건 숨김' : '');
+    /* 전월이 없으면 임계값은 «증감» 기준이라 걸리지 않는다. 걸리는 척하면 안 된다. */
+    $('#sgaDetailNote').innerHTML = hasPrev
+      ? ('전 팀 · 전 비목을 한 표로 봅니다 · 세부 변동 표시기준 <b>' + S.th + '만원</b> 이상' +
+         (fl.hidN ? ' · 기준 미만 ' + fl.hidN + '건 숨김' : ''))
+      : '전 팀 · 전 비목을 한 표로 봅니다 · <b>전월이 없어 표시기준은 적용되지 않습니다</b> — 금액이 있는 항목을 모두 보여 줍니다.';
     $('#sgaDetail').innerHTML = descTable(fl, hasPrev, 300);
   }
 
