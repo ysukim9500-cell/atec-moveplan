@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ATEC 이동계획</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20260911d">
+<link rel="stylesheet" href="styles.css?v=20260911e">
 </head>
 <body>
 
@@ -367,17 +367,17 @@
   </div>
 </div>
 
-<script src="mp-auth.js?v=20260911d"></script>
-<script src="mp-data.js?v=20260911d"></script>
-<script src="mp-calc.js?v=20260911d"></script>
-<script src="mp-ui.js?v=20260911d"></script>
-<script src="mp-plan.js?v=20260911d"></script>
-<script src="mp-week.js?v=20260911d"></script>
-<script src="mp-admin.js?v=20260911d"></script>
-<script src="mp-import.js?v=20260911d"></script>
-<script src="mp-sga.js?v=20260911d"></script>
-<script src="mp-erp.js?v=20260911d"></script>
-<script src="mp-report.js?v=20260911d"></script>
+<script src="mp-auth.js?v=20260911e"></script>
+<script src="mp-data.js?v=20260911e"></script>
+<script src="mp-calc.js?v=20260911e"></script>
+<script src="mp-ui.js?v=20260911e"></script>
+<script src="mp-plan.js?v=20260911e"></script>
+<script src="mp-week.js?v=20260911e"></script>
+<script src="mp-admin.js?v=20260911e"></script>
+<script src="mp-import.js?v=20260911e"></script>
+<script src="mp-sga.js?v=20260911e"></script>
+<script src="mp-erp.js?v=20260911e"></script>
+<script src="mp-report.js?v=20260911e"></script>
 <script>
 (function () {
   'use strict';
@@ -415,9 +415,7 @@
     if (p.mpRole !== 'admin') { $('#navMig').disabled = true; $('#navAdmin').disabled = true; }
     return D.load(YEAR);
   }).then(function () {
-    /* 기준 월 : 열려 있는 달, 없으면 마지막으로 값이 있는 달 */
-    var open = ALL.filter(function (m) { return D.isOpen(m); });
-    UI.month = open.length ? open[open.length - 1] : ALL[ALL.length - 1];
+    UI.month = defaultMonth();
     /* ERP 가 있는 달은 확정실적을 쓸 수 있게 미리 읽어 둔다 */
     return Promise.all(D.erpMonths().map(function (m) { return D.loadErp(m); }));
   }).then(function () {
@@ -428,6 +426,27 @@
   });
 
   function teamLabel(t) { return t === '*' ? '전체 (관리자)' : (D.TEAM_LABEL[t] || t || '—'); }
+
+  /**
+   * 처음 열었을 때 어느 달을 보여줄 것인가.
+   *
+   * «마지막 열린 달»을 쓰면 8~12월이 모두 열려 있는 지금 12월이 잡힌다 —
+   * 아직 아무도 손대지 않은 달이다. 오늘이 속한 달이 지금 일하는 달이므로
+   * 그 달을 먼저 본다. 그 달이 닫혀 있으면 가장 가까운 열린 달로 물러난다.
+   */
+  function defaultMonth() {
+    var now = MpUI.kst(new Date());
+    var cur = D.mOf(now.getFullYear(), now.getMonth() + 1);
+    var open = ALL.filter(function (m) { return D.isOpen(m); });
+    if (!open.length) return ALL[ALL.length - 1];
+    if (open.indexOf(cur) >= 0) return cur;
+    var best = open[0], bd = Math.abs(open[0] - cur);
+    open.forEach(function (m) {
+      var d = Math.abs(m - cur);
+      if (d < bd) { bd = d; best = m; }
+    });
+    return best;
+  }
 
   /* ---------- 화면 전환 ---------- */
   var TITLES = {
