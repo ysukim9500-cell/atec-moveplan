@@ -229,37 +229,15 @@
 
   /* ---------- 엑셀 내보내기 ----------
      SheetJS 는 880KB 라 이 버튼을 누를 때만 받아 온다. */
-  function loadXlsx() {
-    if (global.XLSX) return Promise.resolve();
-    return new Promise(function (res, rej) {
-      var s = document.createElement('script');
-      s.src = 'vendor/xlsx.js';
-      s.onload = res;
-      s.onerror = function () { rej(new Error('엑셀 모듈을 불러오지 못했습니다.')); };
-      document.head.appendChild(s);
-    });
-  }
+  function loadXlsx() { return MpXlsx.loadXlsx(); }
 
   function exportXlsx() {
     var b = $('#btnWkXlsx');
     b.disabled = true; b.textContent = '준비 중…';
     loadXlsx().then(function () {
-      var rows = summaryRows(S.team);
-      var aoa = [['고객지원사업부 이동계획 변동 — ' + D.teamName(S.team)],
-                 ['단위 : 백만원', '기준 ' + U.ymd() + ' (KST)'], [],
-                 ['월', '항목', '월간계획', '전주', '금주', '전주 대비', '계획 대비', '변동 사유']];
-      rows.forEach(function (r, i) {
-        aoa.push([i % 3 === 0 ? (D.moOf(r.m) + '월') : '', r.item,
-                  r.plan == null ? null : Math.round(r.plan),
-                  r.prev == null ? null : Math.round(r.prev),
-                  r.cur == null ? null : Math.round(r.cur),
-                  r.dPrev, r.dPlan, r.note || '']);
-      });
-      var ws = XLSX.utils.aoa_to_sheet(aoa);
-      ws['!cols'] = [{ wch: 7 }, { wch: 10 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 46 }];
-      var wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, '이동계획차이');
-      XLSX.writeFile(wb, '이동계획차이_' + U.ymd(null, '') .slice(2) + '.xlsx');
+      /* 원본 «이동계획차이.xlsx» 배치를 그대로 따른다 — 받는 쪽이 옮겨 적지 않게 */
+      var wb = MpXlsx.diffBook(summaryRows(S.team));
+      XLSX.writeFile(wb, '이동계획차이_' + U.ymd(null, '').slice(2) + '.xlsx');
       b.disabled = false; b.textContent = '엑셀 내보내기';
     }).catch(function (e) {
       b.disabled = false; b.textContent = '엑셀 내보내기';

@@ -242,16 +242,7 @@
   /* ==========================================================================
    * 내려받기
    * ======================================================================== */
-  function loadXlsx() {
-    if (global.XLSX) return Promise.resolve();
-    return new Promise(function (res, rej) {
-      var s = document.createElement('script');
-      s.src = 'vendor/xlsx.js';
-      s.onload = res;
-      s.onerror = function () { rej(new Error('엑셀 모듈을 불러오지 못했습니다.')); };
-      document.head.appendChild(s);
-    });
-  }
+  function loadXlsx() { return MpXlsx.loadXlsx(); }
 
   /** 화면에 그린 표를 그대로 시트로 옮긴다 — 보고서와 파일이 어긋나지 않게. */
   function tableToAoa(sel) {
@@ -279,7 +270,8 @@
     var b = $('#btnRpXlsx');
     b.disabled = true; b.textContent = '준비 중…';
     loadXlsx().then(function () {
-      var wb = XLSX.utils.book_new();
+      /* 원본 «이동계획.xlsx» 의 월 시트를 그대로 만들고, 요약 네 장을 앞에 붙인다 */
+      var wb = MpXlsx.planBook(monthsOf());
       var head = [
         [D.teamName(S.team) + ' 이동계획 · ' + YEAR + '년 ' + scopeLabel()],
         [$('#rpBasis').textContent],
@@ -294,6 +286,8 @@
       add('월별', '#tblRpMonth');
       add('팀별', '#tblRpTeam');
       add('변동사유', '#tblRpNote');
+      /* 요약을 앞으로 — 원본도 «요약»이 첫 시트다 */
+      wb.SheetNames = wb.SheetNames.slice(-4).concat(wb.SheetNames.slice(0, -4));
       XLSX.writeFile(wb, '이동계획_리포트_' + YEAR + '_' + scopeLabel().replace(/[~ ]/g, '') + '_' +
         U.ymd(null, '').slice(2) + '.xlsx');
       b.disabled = false; b.textContent = '엑셀 내려받기';
