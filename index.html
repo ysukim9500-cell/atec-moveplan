@@ -80,8 +80,13 @@
 
         <div class="otp-qr" id="qrBox"></div>
 
+        <a id="otpLink" class="btn wide hide" style="margin-bottom:11px" href="#">
+          이 기기에서 인증 앱 바로 열기
+        </a>
+
         <div class="desc" style="margin-bottom:5px">QR을 찍을 수 없으면 이 키를 앱에 직접 입력하세요</div>
         <div class="otp-secret" id="otpSecret">—</div>
+        <button class="btn" id="btnCopySecret" style="margin:-6px 0 13px">키 복사</button>
 
         <div id="msgEnroll"></div>
         <input id="enrollCode" class="otp-code" inputmode="numeric" maxlength="6" placeholder="······" autocomplete="one-time-code">
@@ -179,24 +184,82 @@
   };
 
   /* ---------- 2단계 · 최초 등록 ---------- */
+
+  /* QR 그리기.
+     Supabase 는 QR 을 SVG 마크업으로 내려주는데 viewBox 가 없고 width/height 만 있다.
+     그대로 두고 CSS 로 줄이면 축소되지 않고 잘려 나가 위치 검출 패턴이 사라진다 —
+     화면에는 QR 처럼 보이지만 스캔이 되지 않는다. viewBox 를 채워 넣어야 한다. */
+  function paintQr(qr) {
+    var box = $('#qrBox');
+    box.innerHTML = '';
+
+    if (!qr) {
+      box.innerHTML = '<div class="desc" style="width:172px;height:172px;display:flex;' +
+                      'align-items:center;justify-content:center">아래 키를 앱에 직접 입력하세요</div>';
+      return;
+    }
+
+    if (/^data:/.test(qr)) {
+      // 속성 문자열로 조립하지 않는다 — data:image/svg+xml 안의 따옴표가 태그를 깨뜨린다
+      var img = new Image();
+      img.alt = '2단계 인증 QR';
+      img.src = qr;
+      box.appendChild(img);
+      return;
+    }
+
+    box.innerHTML = qr;
+    var svg = box.querySelector('svg');
+    if (!svg) return;
+    if (!svg.getAttribute('viewBox')) {
+      var w = parseFloat(svg.getAttribute('width')) || 219;
+      var h = parseFloat(svg.getAttribute('height')) || w;
+      svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    }
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svg.setAttribute('shape-rendering', 'crispEdges');   // 축소해도 모듈 경계가 뭉개지지 않게
+    svg.removeAttribute('width');
+    svg.removeAttribute('height');
+  }
+
   function startEnroll() {
     show('enroll');
     say('#msgEnroll', '');
     $('#qrBox').innerHTML = '<div class="desc" style="width:172px;height:172px;display:flex;align-items:center;justify-content:center">준비 중…</div>';
+    $('#otpSecret').textContent = '—';
+    $('#otpLink').classList.add('hide');
+
     MpAuth.enroll().then(function (r) {
       if (r.error) { say('#msgEnroll', r.error); $('#qrBox').innerHTML = ''; return; }
-      // Supabase 가 QR 을 SVG 로 내려준다. 없으면 키 직접 입력으로 안내한다.
-      if (r.qr) {
-        $('#qrBox').innerHTML = /^data:/.test(r.qr)
-          ? '<img alt="2단계 인증 QR" src="' + r.qr + '">'
-          : r.qr;
-      } else {
-        $('#qrBox').innerHTML = '<div class="desc" style="width:172px;display:flex;align-items:center;justify-content:center;height:172px">아래 키를 직접 입력하세요</div>';
-      }
+      paintQr(r.qr);
       $('#otpSecret').textContent = r.secret || '—';
+      if (r.uri) {
+        var a = $('#otpLink');
+        a.href = r.uri;                 // 폰에서 열면 인증 앱이 바로 뜬다
+        a.classList.remove('hide');
+      }
       setTimeout(function () { $('#enrollCode').focus(); }, 60);
     });
   }
+
+  /* 키 복사 — 손으로 옮겨 적다 틀리는 걸 막는다 */
+  $('#btnCopySecret').onclick = function () {
+    var s = $('#otpSecret').textContent.trim();
+    if (!s || s === '—') return;
+    var btn = this;
+    var done = function () {
+      btn.textContent = '복사됨';
+      setTimeout(function () { btn.textContent = '키 복사'; }, 1600);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(s).then(done, function () {});
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = s; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  };
 
   $('#btnEnrollVerify').onclick = function () {
     var b = this;
