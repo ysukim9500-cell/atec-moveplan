@@ -27,7 +27,8 @@
     var s = v > 0.005 ? '+' : v < -0.005 ? '−' : '';
     return s + (S.unit === 'M' ? fmt(Math.abs(v)) : fmt0(Math.abs(v) * 1e6));
   }
-  function admin() { return MpAuth.isAdmin(); }
+  /* 폰에서는 사유 입력칸과 업로드를 열지 않는다 — 보기 전용이다 */
+  function admin() { return MpAuth.isAdmin() && !MpAuth.viewOnly(); }
 
   function flash(msg, err) {
     var el = $('#erpSave');

@@ -310,9 +310,18 @@
   function isLead()  { var m = me(); return !!(m && m.mpRole === 'lead'); }
   function myTeam()  { var m = me(); return m ? m.team : null; }
 
+  /**
+   * 폰에서는 보기 전용이다.
+   * 손익표는 열이 20개가 넘어 폰에서 제대로 채울 수 없고,
+   * 반쯤 채워진 값이 남는 편이 아예 못 넣는 것보다 나쁘다.
+   * 서버는 이걸 모른다 — 여기서 막는 건 실수 방지이지 권한이 아니다.
+   */
+  function viewOnly() { return (global.innerWidth || 1200) < 760; }
+
   /** 이 팀의 값을 내가 고칠 수 있는가 — 화면에서 입력칸을 열지 말지 판단용.
       실제 차단은 RLS 의 mp_can_write() 가 한다. */
   function canWriteTeam(team) {
+    if (viewOnly()) return false;
     if (isAdmin()) return true;
     return isLead() && team === myTeam();
   }
@@ -347,6 +356,7 @@
     me: me, loadProfile: loadProfile, myUserId: myUserId,
     aal: aal, isAal2: isAal2,
     isAdmin: isAdmin, isLead: isLead, myTeam: myTeam, canWriteTeam: canWriteTeam,
+    viewOnly: viewOnly,
     requireAuth: requireAuth, authFetch: authFetch, rest: rest,
     token: function () { return get(K_AT); }
   };

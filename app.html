@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ATEC 이동계획</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20260909c">
+<link rel="stylesheet" href="styles.css?v=20260910a">
 </head>
 <body>
 
@@ -22,6 +22,7 @@
       <button data-p="plan">월별 이동계획</button>
       <button data-p="week">주차별 변동 관리</button>
       <div class="grp">실적 검토</div>
+      <button data-p="report">리포트 · 내려받기</button>
       <button data-p="erp">확정 판관비/매출현황</button>
       <div class="grp">데이터</div>
       <button data-p="admin" id="navAdmin">설정 · 데이터 관리</button>
@@ -45,6 +46,7 @@
 
     <div class="content">
       <div id="boot" class="note info">데이터를 불러오는 중입니다…</div>
+      <div class="note info mobar noprint">폰에서는 <b>보기 전용</b>입니다. 손익표는 열이 20개가 넘어 폰으로는 제대로 채울 수 없습니다. 입력은 PC 에서 해 주세요.</div>
 
       <!-- ===== 대시보드 ===== -->
       <section id="p-dash" class="hide">
@@ -132,6 +134,47 @@
           <div class="card"><div class="hd"><div><h3>주차별 추이</h3></div>
             <div class="legend" id="lgWeek"></div></div>
             <div class="bd"><div class="chart" id="chWeek"></div></div></div>
+        </div>
+      </section>
+
+      <!-- ===== 리포트 · 내려받기 ===== -->
+      <section id="p-report" class="hide">
+        <div class="gbar noprint">
+          <div class="gline"><span class="glabel">기준 월</span><div class="tabs" id="rpMonth"></div></div>
+          <div class="gline"><span class="glabel">범위</span><div class="tabs" id="rpScope"></div></div>
+          <div class="gline"><span class="glabel">대상</span><div class="tabs" id="rpTeam"></div>
+            <div class="spacer"></div>
+            <button class="btn" id="btnRpXlsx">엑셀 내려받기</button>
+            <button class="btn red" id="btnRpPrint">인쇄 · PDF</button></div>
+        </div>
+
+        <div class="paper">
+          <div class="rphead">
+            <div>
+              <h1 id="rpTitle"></h1>
+              <div class="stamp" id="rpStamp"></div>
+            </div>
+            <div class="rpunit" id="rpUnit"></div>
+          </div>
+
+          <div class="note info" id="rpBasis"></div>
+
+          <h2 class="rpsec">1. 손익 요약</h2>
+          <table class="t rp" id="tblRpSum"></table>
+
+          <h2 class="rpsec">2. 월별 추이</h2>
+          <div class="tbl-wrap" style="max-height:none"><table class="t rp" id="tblRpMonth"></table></div>
+
+          <h2 class="rpsec">3. 팀별</h2>
+          <div class="tbl-wrap" style="max-height:none"><table class="t rp" id="tblRpTeam"></table></div>
+
+          <h2 class="rpsec">4. 변동 사유 <span id="rpNoteSub"></span></h2>
+          <table class="t rp" id="tblRpNote"></table>
+
+          <div class="rpfoot">
+            «실적»은 ERP 확정본, «최종 OL»은 그 달 마지막 주차 이동계획입니다.
+            공판은 매출 × 공판율이며, 매출이익에는 ERP에 계상되지 않는 개발비가 이동계획 값으로 반영되어 있습니다.
+          </div>
         </div>
       </section>
 
@@ -275,15 +318,16 @@
   </div>
 </div>
 
-<script src="mp-auth.js?v=20260909c"></script>
-<script src="mp-data.js?v=20260909c"></script>
-<script src="mp-calc.js?v=20260909c"></script>
-<script src="mp-ui.js?v=20260909c"></script>
-<script src="mp-plan.js?v=20260909c"></script>
-<script src="mp-week.js?v=20260909c"></script>
-<script src="mp-admin.js?v=20260909c"></script>
-<script src="mp-import.js?v=20260909c"></script>
-<script src="mp-erp.js?v=20260909c"></script>
+<script src="mp-auth.js?v=20260910a"></script>
+<script src="mp-data.js?v=20260910a"></script>
+<script src="mp-calc.js?v=20260910a"></script>
+<script src="mp-ui.js?v=20260910a"></script>
+<script src="mp-plan.js?v=20260910a"></script>
+<script src="mp-week.js?v=20260910a"></script>
+<script src="mp-admin.js?v=20260910a"></script>
+<script src="mp-import.js?v=20260910a"></script>
+<script src="mp-erp.js?v=20260910a"></script>
+<script src="mp-report.js?v=20260910a"></script>
 <script>
 (function () {
   'use strict';
@@ -341,6 +385,7 @@
     plan:  ['월별 이동계획', '주차별 OL 입력 · 전주 대비 변동 · 확정실적 대비'],
     week:  ['주차별 변동 관리', '계획 → 전주 → 금주 · 변동 사유'],
     erp:   ['확정 판관비 / 매출현황', 'ERP 확정본 대사 · 차이 사유 · 마감 확정'],
+    report:['리포트 · 내려받기', '보고용 요약 · 엑셀 · PDF'],
     admin: ['설정 · 데이터 관리', '월 개폐 · 확정 · 팀원 · 변경 이력'],
     check: ['연결 · 권한 점검', 'RLS 가 실제로 막는지 확인']
   };
@@ -348,19 +393,36 @@
     if (p === 'migrate') { location.href = 'migrate.html'; return; }
     UI.page = p;
     $$('#nav button').forEach(function (b) { b.classList.toggle('on', b.dataset.p === p); });
-    ['dash', 'plan', 'week', 'erp', 'admin', 'check'].forEach(function (s) { $('#p-' + s).classList.toggle('hide', s !== p); });
+    ['dash', 'plan', 'week', 'erp', 'report', 'admin', 'check'].forEach(function (s) { $('#p-' + s).classList.toggle('hide', s !== p); });
     $('#pgTitle').textContent = TITLES[p][0];
     $('#pgSub').textContent = TITLES[p][1];
     if (p === 'dash') renderDash();
     if (p === 'plan') MpPlan.open(UI.month, UI.team);
     if (p === 'week') MpWeek.open(UI.month, UI.team);
     if (p === 'erp') MpErp.open(UI.month);
+    if (p === 'report') MpReport.open(UI.month);
     if (p === 'admin') MpAdmin.open();
     if (p === 'check') renderCheck();
   }
   $$('#nav button').forEach(function (b) {
     b.onclick = function () { if (!this.disabled) go(this.dataset.p); };
   });
+
+  /* 창 폭이 760px 경계를 넘나들면 입력칸을 열고 닫아야 한다.
+     폭이 조금 변할 때마다 다시 그리면 입력 중에 커서가 튀므로 경계에서만 다시 그린다. */
+  var wasNarrow = MpAuth.viewOnly();
+  var rzT = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(rzT);
+    rzT = setTimeout(function () {
+      var now = MpAuth.viewOnly();
+      if (now === wasNarrow) return;
+      wasNarrow = now;
+      document.body.classList.toggle('ro', now);
+      go(UI.page);
+    }, 220);
+  });
+  document.body.classList.toggle('ro', wasNarrow);
   $('#btnLogout').onclick = function () { MpAuth.logout(); location.replace('index.html'); };
 
   /* ---------- 대시보드 ---------- */
