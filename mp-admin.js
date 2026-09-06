@@ -35,6 +35,14 @@
       $('#adBody').classList.add('hide');
       return;
     }
+    /* 폰에서는 열지 않는다. 월 확정과 팀원 해제는 되돌리기 어렵고,
+       좁은 화면에서 잘못 누르기 쉬운 자리에 있다. */
+    if (MpAuth.viewOnly()) {
+      $('#adGate').className = 'note info';
+      $('#adGate').innerHTML = '이 화면은 <b>PC 에서만</b> 씁니다. 월 확정 · 팀원 배정은 되돌리기 어려워 폰에서는 열지 않습니다.';
+      $('#adBody').classList.add('hide');
+      return;
+    }
     $('#adGate').className = 'hide';
     $('#adBody').classList.remove('hide');
     renderPeriods();

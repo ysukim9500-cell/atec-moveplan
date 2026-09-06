@@ -28,8 +28,10 @@
   function canEdit() {
     return D.isOpen(S.m) && MpAuth.canWriteTeam(S.team) && S.team !== D.TOTAL;
   }
+  /* 월간계획 열은 관리자만 고친다. 팀 소속과 무관하므로 canWriteTeam 을 타지 않는데,
+     그래서 폰에서 보기 전용으로 막는 것도 여기서 따로 해 줘야 한다. */
   function canEditPlan() {
-    return MpAuth.isAdmin() && !D.isFinal(S.m) && S.team !== D.TOTAL;
+    return MpAuth.isAdmin() && !MpAuth.viewOnly() && !D.isFinal(S.m) && S.team !== D.TOTAL;
   }
   function expandable(sec, item) {
     if (S.team === D.TOTAL) return false;
@@ -82,6 +84,10 @@
     if (team === D.TOTAL) {
       note.className = 'note info';
       note.innerHTML = '<b>사업부 합계</b>는 6개 팀을 더한 값입니다. 여기서는 수정할 수 없습니다 — 팀을 골라 주세요.';
+    } else if (MpAuth.viewOnly()) {
+      /* 권한이 없어서가 아니라 화면이 좁아서 막힌 것이다. 이유를 바로 말해 준다. */
+      note.className = 'note info';
+      note.innerHTML = '폰에서는 <b>보기 전용</b>입니다. 손익표는 열이 20개가 넘어 폰으로는 제대로 채울 수 없습니다. 입력은 PC 에서 해 주세요.';
     } else if (!canEdit() && st === 'open') {
       note.className = 'note warn';
       note.innerHTML = '읽기 전용입니다. <b>' + esc(D.teamName(team)) + '</b> 값은 그 팀 담당자와 경영지원팀만 수정할 수 있습니다.';

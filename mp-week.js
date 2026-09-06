@@ -29,6 +29,7 @@
      실제 차단은 RLS 가 한다 — 여기서는 입력칸을 열지 말지만 정한다. */
   function canNote(m, team) {
     if (!D.isOpen(m)) return false;
+    if (MpAuth.viewOnly()) return false;
     if (team === D.TOTAL) return MpAuth.isAdmin();
     return MpAuth.canWriteTeam(team);
   }
