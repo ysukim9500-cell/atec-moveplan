@@ -463,3 +463,5 @@ td.cz{white-space:normal;line-height:1.7}
 
 #tblErpRecon td.txt{min-width:240px}
 #tblSgaTeam td,#tblRevTeam td{vertical-align:middle}
+#tblErpRecon tr.devrow td{background:var(--soft);color:var(--ink2);font-size:12px}
+#tblErpRecon tr.devrow td.txt.q{font-size:11px}

@@ -159,6 +159,18 @@
           ? '<textarea rows="1" class="na" data-en="' + esc(sec + '~' + item) + '" placeholder="' +
             (big ? '차이가 5% 를 넘습니다 — 사유를 적어 주세요' : '차이 사유') + '">' + esc(body) + '</textarea>'
           : (body ? esc(body) : '<span class="zero">–</span>')) + '</td></tr>';
+
+      /* 개발비를 따로 세워 둔다. 이게 없으면 매출 − 매출원가 가 매출이익과 맞지 않아
+         보는 사람이 계산을 의심하게 된다. 연구소에 주는 고정비라 ERP 에는 없다. */
+      if (label === '매출이익') {
+        var dev = a.dev || 0;
+        h += '<tr class="devrow"><td class="txt">└ 개발비 <span class="bdg">ERP 미계상</span></td>' +
+          '<td class="n gs">' + uf(K.PL(m, D.TOTAL, '매출이익', '개발비')) + '</td>' +
+          '<td class="n">' + uf(dev) + '</td><td class="n cur">' + uf(dev) + '</td>' +
+          '<td class="n flat">0.0</td><td class="n">–</td>' +
+          '<td class="txt q">ERP 에 계상되지 않아 최종 OL 값을 그대로 반영합니다. ' +
+          '매출이익 = 매출 − 매출원가 + 개발비.</td></tr>';
+      }
     });
     $('#tblErpRecon').innerHTML = h + '</tbody>';
     bindNotes(m);
@@ -265,7 +277,8 @@
       '<th class="n" style="width:96px">' + (hasPrev ? D.moOf(prevM) + '월' : '전월') + '</th>' +
       '<th class="n cur" style="width:96px">' + D.moOf(m) + '월</th>' +
       '<th class="n" style="width:92px">증감액</th><th class="n" style="width:78px">증감률</th>' +
-      '<th class="c" style="width:112px">규모</th><th>주요 증감 원인</th></tr></thead><tbody>';
+      '<th class="c" style="width:112px">규모</th><th>' +
+      (hasPrev ? '주요 증감 원인' : '금액이 큰 항목 (당월)') + '</th></tr></thead><tbody>';
     var tot = 0, ptot = 0;
     keys.forEach(function (t) {
       var c = tc[t].total, p = pc && pc[t] ? pc[t].total : null;
@@ -280,8 +293,8 @@
         '<td class="n ' + dcls(d) + '">' + us(d) + '</td>' +
         '<td class="n ' + dcls(d) + '">' + (rate == null ? '–' : ((rate > 0 ? '+' : '−') + Math.abs(rate * 100).toFixed(1) + '%')) + '</td>' +
         '<td class="c">' + rateBar(rate, maxRate) + '</td>' +
-        '<td class="cz">' + causes(tc[t], pc && pc[t], 2) + '</td></tr>';
-      if (S.open[t]) h += panel(tc[t], pc && pc[t]);
+        '<td class="cz">' + causes(tc[t], pc && pc[t], 2, hasPrev) + '</td></tr>';
+      if (S.open[t]) h += panel(tc[t], pc && pc[t], hasPrev);
     });
     var dt = hasPrev ? (tot - ptot) : null;
     h += '<tr class="grand"><td>합 계</td><td class="n">' + (hasPrev ? uf(ptot) : '–') + '</td>' +
@@ -322,7 +335,8 @@
 
   /* 0 을 가운데 두고 좌우로 뻗는 막대 */
   function rateBar(rate, max) {
-    if (rate == null || !(max > 0)) return '<span class="mbar"><i class="flat" style="left:50%;width:0"></i></span>';
+    /* 비교 대상이 없으면 빈 막대를 그리지 않는다 — 0 처럼 보인다 */
+    if (rate == null || !(max > 0)) return '';
     var w = Math.min(50, Math.abs(rate) / max * 50);
     var cls = rate > 0.005 ? 'up' : rate < -0.005 ? 'down' : 'flat';
     var st = rate >= 0 ? ('left:50%;width:' + w.toFixed(1) + '%') : ('right:50%;width:' + w.toFixed(1) + '%');
@@ -354,19 +368,21 @@
     return { top: top, more: Math.max(0, arr.length - top.length) };
   }
 
-  function causes(cur, prv, n) {
+  function causes(cur, prv, n, hasPrev) {
     var r = topCauses(cur, prv, n);
     if (!r.top.length) return '<span class="q">—</span>';
     return r.top.map(function (x) {
       var nm = x.raw || x.d;
       if (nm.length > 26) nm = nm.slice(0, 26) + '…';
-      return '<span class="czi" title="' + esc(x.raw || x.d) + '"><b class="' + dcls(x.v) + '">' + us(x.v) + '</b> ' +
+      /* 전월이 없으면 부호를 붙이지 않는다 — 증감이 아니라 당월 금액이다 */
+      return '<span class="czi" title="' + esc(x.raw || x.d) + '"><b' + (hasPrev ? ' class="' + dcls(x.v) + '"' : '') + '>' +
+        (hasPrev ? us(x.v) : uf(x.c)) + '</b> ' +
         esc(nm) + (x.isNew ? ' <span class="bdg">신규</span>' : x.gone ? ' <span class="bdg">당월 없음</span>' : '') + '</span>';
     }).join('') + (r.more ? ' <span class="q">외 ' + r.more + '건</span>' : '');
   }
 
   /* 팀 펼침 — 비목별 요약 + 적요 상세 */
-  function panel(cur, prv) {
+  function panel(cur, prv, hasPrev) {
     var cats = Object.keys(cur.cat).sort(function (a, b) { return cur.cat[b] - cur.cat[a]; });
     var chips = cats.map(function (c) {
       var d = prv ? (cur.cat[c] - (prv.cat[c] || 0)) : null;
@@ -379,17 +395,19 @@
       return '<tr><td class="txt">' + esc(x.raw || x.d) +
         (x.isNew ? ' <span class="bdg">신규</span>' : x.gone ? ' <span class="bdg">당월 없음</span>' : '') + '</td>' +
         '<td class="q">' + esc(x.cat || '') + '</td>' +
-        '<td class="n">' + (x.p == null ? '<span class="zero">–</span>' : uf(x.p)) + '</td>' +
+        (hasPrev ? '<td class="n">' + (x.p == null ? '<span class="zero">–</span>' : uf(x.p)) + '</td>' : '') +
         '<td class="n cur"><b>' + uf(x.c) + '</b></td>' +
-        '<td class="n ' + dcls(x.v) + '">' + us(x.v) + '</td></tr>';
+        (hasPrev ? '<td class="n ' + dcls(x.v) + '">' + us(x.v) + '</td>' : '') + '</tr>';
     }).join('');
 
     return '<tr class="prow"><td colspan="7"><div class="pcell">' +
       '<div class="pttl">비목별</div><div class="pchips">' + chips + '</div>' +
       '<div class="pttl">적요별 상위 ' + r.top.length + '건' + (r.more ? ' (외 ' + r.more + '건)' : '') + '</div>' +
       '<table class="t sub"><thead><tr><th>적요</th><th style="width:92px">비목</th>' +
-      '<th class="n" style="width:92px">전월</th><th class="n" style="width:92px">당월</th>' +
-      '<th class="n" style="width:92px">증감</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      (hasPrev ? '<th class="n" style="width:92px">전월</th>' : '') +
+      '<th class="n" style="width:92px">당월</th>' +
+      (hasPrev ? '<th class="n" style="width:92px">증감</th>' : '') +
+      '</tr></thead><tbody>' + rows + '</tbody></table>' +
       '</div></td></tr>';
   }
 
