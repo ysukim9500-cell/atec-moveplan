@@ -123,6 +123,7 @@
     });
 
     /* 선 — 2px. 마커는 지름 8px, 겹침 대비 2px 서피스 링. */
+    var marks = [];
     series.forEach(function (s) {
       var d = '', on = false;
       s.values.forEach(function (v, i) {
@@ -134,13 +135,26 @@
         if (v == null) return;
         g += '<circle cx="' + X(i) + '" cy="' + Y(v) + '" r="4" fill="' + s.color + '" stroke="#fff" stroke-width="2"/>';
       });
-      /* 직접 라벨 — 마지막 실값에만 */
       var li = -1;
       s.values.forEach(function (v, i) { if (v != null) li = i; });
-      if (li >= 0) {
-        g += '<text x="' + (X(li) + 9) + '" y="' + (Y(s.values[li]) + 3.5) + '" font-size="10.5" font-weight="700" fill="' + INK2 + '">' +
-             esc(s.name) + '</text>';
-      }
+      if (li >= 0) marks.push({ name: s.name, color: s.color, x: X(li), y: Y(s.values[li]) });
+    });
+
+    /* 직접 라벨 — 마지막 실값에만.
+       그냥 찍으면 선끼리 붙는 구간에서 라벨이 겹쳐 읽히지 않는다.
+       세로로 밀어 최소 간격을 확보하고, 선 위를 지날 때를 대비해 흰 테두리를 두른다. */
+    marks.sort(function (a, b) { return a.y - b.y; });
+    var GAP = 13;
+    for (var mi = 1; mi < marks.length; mi++) {
+      if (marks[mi].y - marks[mi - 1].y < GAP) marks[mi].y = marks[mi - 1].y + GAP;
+    }
+    marks.forEach(function (mk) {
+      var right = mk.x + 9 + mk.name.length * 7 < W - 4;
+      g += '<text x="' + (right ? mk.x + 9 : mk.x - 9) + '" y="' + (mk.y + 3.5) + '"' +
+           (right ? '' : ' text-anchor="end"') +
+           ' font-size="10.5" font-weight="700" fill="' + INK2 +
+           '" stroke="#fff" stroke-width="3" paint-order="stroke" stroke-linejoin="round">' +
+           esc(mk.name) + '</text>';
     });
 
     /* 크로스헤어 — 기본으로 단다 */
