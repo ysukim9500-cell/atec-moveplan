@@ -53,9 +53,12 @@
     return h;
   }
 
+  var lastRefreshAt = 0;
+
   function storeTokens(j) {
     if (j && j.access_token) set(K_AT, j.access_token);
     if (j && j.refresh_token) set(K_RT, j.refresh_token);
+    lastRefreshAt = Date.now();
     startAutoRefresh();
   }
 
@@ -69,20 +72,38 @@
     }, 45 * 60 * 1000);
   }
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden && get(K_RT)) refresh();
+    /* 탭을 오갈 때마다 부르면 45분 타이머와 겹친다. 최근에 했으면 넘어간다. */
+    if (!document.hidden && get(K_RT) && Date.now() - lastRefreshAt > 5 * 60 * 1000) refresh();
   });
 
+  /**
+   * 리프레시 토큰은 한 번 쓰면 새 것으로 바뀐다.
+   * 이미 쓴 토큰이 다시 오면 Supabase 는 도난으로 보고 세션을 통째로 끊는다.
+   *
+   * 그래서 갱신은 반드시 한 번에 하나여야 한다.
+   * mp-data.load() 는 요청 8개를 동시에 보내는데, 액세스 토큰이 막 만료되면
+   * 여덟이 모두 401 을 받고 각자 갱신을 부른다 — 하나만 성공하고 나머지 일곱이
+   * 쓴 토큰을 내밀어 세션이 끊긴다. 실제로 그렇게 두 번 끊겼다.
+   */
+  var inflight = null;
   function refresh() {
     var rt = get(K_RT);
     if (!rt) return Promise.resolve(false);
-    return fetch(SB_URL + '/auth/v1/token?grant_type=refresh_token', {
+    if (inflight) return inflight;          // 진행 중인 갱신에 올라탄다
+    inflight = fetch(SB_URL + '/auth/v1/token?grant_type=refresh_token', {
       method: 'POST',
       headers: { apikey: SB_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: rt })
     }).then(function (r) {
       if (!r.ok) return false;
       return r.json().then(function (j) { storeTokens(j); return true; });
-    }).catch(function () { return false; });
+    }).catch(function () {
+      return false;
+    }).then(function (ok) {
+      inflight = null;
+      return ok;
+    });
+    return inflight;
   }
 
   /** 토큰을 붙여 요청. 401/403 이면 한 번 갱신 후 재시도한다. */
