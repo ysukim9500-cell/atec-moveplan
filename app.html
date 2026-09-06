@@ -125,20 +125,30 @@ table.chk td.v{text-align:right;font-family:var(--num);white-space:nowrap}
   $('#btnLogout').onclick = function () { MpAuth.logout(); location.replace('index.html'); };
   $('#btnRecheck').onclick = function () { runChecks(MpAuth.me()); };
 
+  function teamLabel(t) {
+    if (!t) return '(미지정)';
+    return t === '*' ? '전체 (관리자)' : t;
+  }
+
+  /* m = year*12 + (month-1) */
+  function mLabel(m) {
+    return Math.floor(m / 12) + '년 ' + ((m % 12) + 1) + '월';
+  }
+
   function renderMe(p) {
     var rows = [
       ['이름', p.name],
       ['이메일', p.email],
       ['승인 상태', p.status],
       ['이동계획 역할', p.mpRole || '(미지정)'],
-      ['소속 팀', p.team || '(미지정)'],
+      ['소속 팀', teamLabel(p.team)],
       ['인증 단계', MpAuth.aal() + (MpAuth.isAal2() ? ' · 2단계 통과' : ' · 2단계 미통과')]
     ];
     $('#tblMe').innerHTML = rows.map(function (r) {
       return '<tr><th style="width:120px">' + r[0] + '</th><td>' + esc(r[1]) + '</td></tr>';
     }).join('');
-    $('#chipWho').innerHTML = esc(p.name) + ' · <b>' + esc(p.team || '—') + '</b>';
-    $('#whoFoot').innerHTML = esc(p.mpRole || '—') + ' · <b>' + esc(p.team || '—') + '</b>';
+    $('#chipWho').innerHTML = esc(p.name) + ' · <b>' + esc(teamLabel(p.team)) + '</b>';
+    $('#whoFoot').innerHTML = esc(p.mpRole || '—') + ' · <b>' + esc(teamLabel(p.team)) + '</b>';
   }
 
   function esc(s) {
@@ -147,12 +157,21 @@ table.chk td.v{text-align:right;font-family:var(--num);white-space:nowrap}
     });
   }
 
-  /* 각 점검은 실제 요청을 보내고, 기대한 대로 허용/거부되는지 본다. */
+  /* 각 점검은 실제 요청을 보내고, 기대한 대로 허용/거부되는지 본다.
+     열린 달을 서버에서 먼저 읽어 와야 "열린 달에는 써진다"를 실제로 확인할 수 있다. */
   function runChecks(p) {
+    MpAuth.rest('mp_periods?select=m&state=eq.open&order=m&limit=1')
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (rows) { paintChecks(p, rows && rows[0] ? rows[0].m : null); })
+      .catch(function () { paintChecks(p, null); });
+  }
+
+  function paintChecks(p, openM) {
     var body = $('#tblChk');
-    var mine = p.team && TEAMS.indexOf(p.team) >= 0 ? p.team : TEAMS[0];
-    var other = TEAMS.filter(function (t) { return t !== mine; })[0];
     var admin = p.mpRole === 'admin';
+    var mine = (p.team && TEAMS.indexOf(p.team) >= 0) ? p.team : TEAMS[0];
+    var other = TEAMS.filter(function (t) { return t !== mine; })[0];
+    var CLOSED = 999999;   /* mp_periods 에 없는 달 = closed 로 판정된다 */
 
     var checks = [
       { name: '월 개폐 상태 읽기', want: '허용',
@@ -161,23 +180,34 @@ table.chk td.v{text-align:right;font-family:var(--num);white-space:nowrap}
         run: function () { return read('mp_week?select=m&limit=1'); } },
       { name: '설정값 읽기', want: '허용',
         run: function () { return read('mp_config?select=key&limit=1'); } },
-      { name: '남의 팀(' + other + ') 값 쓰기', want: admin ? '—' : '거부',
-        skip: admin,
-        run: function () { return write(other); } },
-      { name: '닫힌 달에 내 팀 값 쓰기', want: '거부',
-        run: function () { return write(mine, 999999); } },
+
+      { name: openM == null ? '열린 달에 쓰기 (열린 달 없음)' : ('열린 달(' + mLabel(openM) + ')에 ' + mine + ' 값 쓰기'),
+        want: '허용', skip: openM == null,
+        run: function () { return write(mine, openM); } },
+
+      { name: '닫힌 달에 ' + mine + ' 값 쓰기', want: '거부',
+        run: function () { return write(mine, CLOSED); } },
+
+      { name: '남의 팀(' + other + ') 값 쓰기',
+        want: admin ? '허용' : '거부',
+        note: admin ? '관리자는 전 팀을 쓸 수 있다' : '',
+        skip: openM == null,
+        run: function () { return write(other, openM); } },
+
       { name: '팀원 목록 수정', want: admin ? '허용' : '거부',
         run: function () {
           return MpAuth.rest('mp_members', {
             method: 'POST',
-            headers: { Prefer: 'resolution=ignore-duplicates' },
+            headers: { Prefer: 'resolution=merge-duplicates' },
             body: JSON.stringify({ user_id: p.id, team: p.team, mp_role: p.mpRole })
           }).then(ok);
         } }
     ];
 
     body.innerHTML = checks.map(function (c, i) {
-      return '<tr><td>' + esc(c.name) + '</td><td class="v">' + c.want +
+      return '<tr><td>' + esc(c.name) +
+             (c.note ? '<div class="desc" style="margin-top:2px">' + esc(c.note) + '</div>' : '') +
+             '</td><td class="v">' + c.want +
              '</td><td class="v" id="ck' + i + '"><span class="pill wait">확인 중</span></td></tr>';
     }).join('');
 
