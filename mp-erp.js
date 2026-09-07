@@ -193,20 +193,29 @@
     $('#btnErpUp').textContent = S.upload ? 'ERP 올리기 닫기' : 'ERP 확정본 올리기';
 
     var meta = D.S.erpMeta[m];
-    var st = $('#erpState');
+    var st = $('#erpState'), pv = $('#erpPrev');
+    var prevM = m - 1, hasPrev = !!D.S.erpMeta[prevM] && !!D.S.erpSga[prevM];
+    /* 전월 비교가 되는 달인지 머리줄에서 먼저 밝힌다 — 표를 다 보고 나서
+       «왜 증감이 비어 있지» 하고 되짚게 만들지 않는다. */
+    pv.className = 'chip ' + (hasPrev ? '' : 'warn');
+    pv.innerHTML = hasPrev
+      ? '전월 비교 · <b>' + D.yOf(prevM) + '년 ' + D.moOf(prevM) + '월</b>'
+      : '전월(' + D.moOf(prevM) + '월) 확정 데이터 없음 — 전월 대비 분석 불가';
+    $$('#btnSgaProc,#btnRevProc,#btnErpXlsx').forEach(function (b) { b.disabled = !meta; });
     if (!meta) {
       st.className = 'chip warn';
-      st.textContent = D.yOf(m) + '년 ' + D.moOf(m) + '월 — 확정본 없음';
+      st.textContent = D.yOf(m) + '년 ' + D.moOf(m) + '월 확정 데이터 없음';
       $('#erpBody').classList.add('hide');
       $('#erpEmpty').classList.remove('hide');
-      $('#erpEmpty').innerHTML = '<b>' + D.moOf(m) + '월</b> ERP 확정본이 아직 올라오지 않았습니다. ' +
-        '매출현황·판관비 엑셀은 그 달 마지막 OL 이 끝난 뒤 다음 달 초에 나옵니다.' +
-        (admin() ? ' 위 <b>ERP 확정본 올리기</b> 로 등록하세요.' : ' 경영지원팀이 등록하면 여기에 표시됩니다.');
+      $('#erpEmptyMsg').innerHTML = '경영지원팀이 ' + D.moOf(m) + '월 ERP 확정 엑셀(판관비 / 매출현황)을 올리면 이 화면이 열립니다. ' +
+        '그 파일은 마지막 OL 이 끝난 뒤 다음 달 초에 나옵니다.';
+      $('#btnErpEmptyUp').classList.toggle('hide', !admin());
+      $('#btnErpEmptyUp').onclick = function () { S.upload = true; render(); };
       renderClose();
       return;
     }
     st.className = 'chip ok';
-    st.innerHTML = D.yOf(m) + '년 ' + D.moOf(m) + '월 확정 · 매출 <b>' + meta.rev_cnt +
+    st.innerHTML = D.yOf(m) + '년 ' + D.moOf(m) + '월 마감 · 매출 <b>' + meta.rev_cnt +
       '</b>건 / 판관비 <b>' + meta.sga_cnt + '</b>건';
     $('#erpEmpty').classList.add('hide');
     $('#erpBody').classList.remove('hide');
@@ -249,15 +258,7 @@
     $('#erpSub').textContent = '최종 OL = ' + (fk >= 0 ? (fk + 1) + '주' : '미기입') +
       ' · 개발비는 ERP 에 없어 최종 OL 값을 그대로 씁니다';
 
-    $('#erpKpi').innerHTML =
-      kpi('확정 매출', uf(a.rev), [['최종 OL', uf(o.rev), o.rev == null ? null : a.rev - o.rev],
-                                   ['달성률', o.rev ? pct(a.rev / o.rev) : '–', null]]) +
-      kpi('확정 매출이익', uf(a.gp), [['최종 OL', uf(o.gp), o.gp == null ? null : a.gp - o.gp],
-                                     ['이익률', a.rev ? pct(a.gp / a.rev) : '–', null]]) +
-      kpi('확정 판관비', uf(a.sga), [['최종 OL', uf(o.sga), o.sga == null ? null : a.sga - o.sga],
-                                    ['집행률', o.sga ? pct(a.sga / o.sga) : '–', null]]) +
-      kpi('공판후영업이익', uf(a.op2), [['최종 OL', uf(o.op2), o.op2 == null ? null : a.op2 - o.op2],
-                                       ['월간계획', uf(p.op2), p.op2 == null ? null : a.op2 - p.op2]]);
+    renderKpi(m, a, o, p);
 
     var key = { '매출': 'rev', '매출원가': 'cost', '매출이익': 'gp', '판관비': 'sga',
                 '영업이익': 'op', '공판': 'gongpan', '공판후영업이익': 'op2' };
@@ -352,12 +353,60 @@
     });
   }
 
-  function kpi(label, val, rows) {
-    return '<div class="kpi"><div class="lb">' + esc(label) + ' <span class="chip on">확정</span></div>' +
-      '<div class="vl">' + val + '<small>' + (S.unit === 'M' ? '백만' : '원') + '</small></div>' +
+  /**
+   * KPI 는 보고 있는 구분에 따라 다르다 (v20 과 같다).
+   *   판관비 : 당월 판관비 · 전월 판관비 · 전월 대비 증감액 · 전월 대비 증감률
+   *   매출   : 매출 · 원가 · 이익 · 마진율  (각각 전월과 최종 OL 을 함께)
+   * 한 벌로 고정해 두면 지금 보고 있는 표와 KPI 가 따로 놀아 눈이 두 번 간다.
+   */
+  function renderKpi(m, a, o, p) {
+    var prevM = m - 1, pa = D.S.erpMeta[prevM] ? K.act(prevM, D.TOTAL) : null;
+    $('#erpKpi').innerHTML = (S.kind === 'sga') ? sgaKpi(a, o, pa, prevM) : revKpi(a, o, pa);
+  }
+
+  function sgaKpi(a, o, pa, prevM) {
+    var sC = a.sga, sP = pa ? pa.sga : null, sO = o.sga;
+    var dP = (sP == null) ? null : sC - sP;
+    var dO = (sO == null) ? null : sC - sO;
+    return kpi('당월 판관비', uf(sC), [['최종 OL', uf(sO), dO]], 'hero') +
+      kpi('전월 판관비', uf(sP), [['기준', sP == null ? '데이터 없음' : (D.moOf(prevM) + '월 확정'), null]], 'quiet') +
+      kpi('전월 대비 증감액', dP == null ? '–' : us(dP), [['OL 대비', dO == null ? '–' : us(dO), dO]], 'diff', dP) +
+      kpi('전월 대비 증감률',
+          (sP && dP != null) ? ((dP > 0 ? '+' : '−') + Math.abs(dP / Math.abs(sP) * 100).toFixed(1) + '%') : '–',
+          [['OL 달성률', sO ? pct(sC / sO) : '–', null]], 'diff', dP);
+  }
+
+  function revKpi(a, o, pa) {
+    var mgC = a.rev ? (a.rev - a.cost) / a.rev : null;
+    var mgP = (pa && pa.rev) ? (pa.rev - pa.cost) / pa.rev : null;
+    var mgO = o.rev ? ((o.rev - o.cost) / o.rev) : null;
+    var row = function (lb, c, pv, ov, isPct) {
+      var f = isPct ? function (v) { return v == null ? '–' : pct(v); } : uf;
+      var sf = isPct ? function (v) { return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v * 100).toFixed(1) + '%p'; } : us;
+      var dP = (pv == null || c == null) ? null : c - pv;
+      var dO = (ov == null || c == null) ? null : c - ov;
+      return kpi(lb, f(c), [
+        ['전월', pv == null ? '–' : f(pv), dP == null ? null : (isPct ? dP * 100 : dP), dP == null ? null : sf(dP)],
+        ['최종 OL', ov == null ? '–' : f(ov), dO == null ? null : (isPct ? dO * 100 : dO), dO == null ? null : sf(dO)]
+      ]);
+    };
+    return row('매출', a.rev, pa ? pa.rev : null, o.rev) +
+           row('원가', a.cost, pa ? pa.cost : null, o.cost) +
+           row('이익', a.rev - a.cost, pa ? (pa.rev - pa.cost) : null,
+               (o.rev == null || o.cost == null) ? null : (o.rev - o.cost)) +
+           row('마진율', mgC, mgP, mgO, true);
+  }
+
+  function kpi(label, val, rows, cls, signOf) {
+    var unit = (String(val).indexOf('%') >= 0 || val === '–') ? '' :
+               '<small>' + (S.unit === 'M' ? '백만' : '원') + '</small>';
+    return '<div class="kpi ' + (cls || '') + '">' +
+      '<div class="lb">' + esc(label) + (cls === 'quiet' || cls === 'diff' ? '' : ' <span class="chip on">확정</span>') + '</div>' +
+      '<div class="vl ' + (signOf === undefined ? '' : dcls(signOf)) + '">' + val + unit + '</div>' +
       rows.map(function (r) {
+        var txt = (r[3] !== undefined && r[3] !== null) ? r[3] : (r[2] == null ? '' : us(r[2]));
         return '<div class="row"><span>' + esc(r[0]) + '</span><b>' + r[1] + '</b>' +
-          '<span class="d ' + (r[2] == null ? '' : dcls(r[2])) + '">' + (r[2] == null ? '' : us(r[2])) + '</span></div>';
+          '<span class="d ' + (r[2] == null ? '' : dcls(r[2])) + '">' + txt + '</span></div>';
       }).join('') + '</div>';
   }
 
@@ -1043,6 +1092,204 @@
       .then(function (rows) { return (rows[0] && rows[0].id) || 0; });
   }
 
+  /* ==========================================================================
+   * 내려받기 — v20 의 세 가지
+   *   판관비 가공본 : 상세(Sheet1) · 계정매핑(Sheet2) · 피벗(Sheet3) · 미분류
+   *   매출현황 가공본 : 피벗(Sheet2) · 상세(Sheet1)
+   *   비교표 : 팀별 대사 · 판관비 대사 · 프로젝트 집계
+   *
+   * 가공본은 상세 총합과 피벗 총합이 1원 단위로 맞을 때만 만든다.
+   * 어긋난 파일을 내보내면 받는 쪽이 그걸 정답지로 쓴다.
+   * ======================================================================== */
+  var SGA_COLS = ['회계일자', '전표번호', '이동계획', '계정명', '적요', '차변금액',
+                  '팀명', '관리항목명1', '작성부서', '작성사원', '작성일자'];
+  var REV_COLS = ['매출번호', '전표번호', '매출일자', '품목', '원화금액', '부가세', '합계',
+                  '표준원가- 금액', '영업그룹', '프로젝트코드', '프로젝트명'];
+
+  /** 가공본에는 원장 전 열이 필요하다. 평소엔 안 읽으므로 누를 때 받아 온다. */
+  function fullRows(table, m, cols) {
+    return MpAuth.rest(table + '?select=' + cols + '&m=eq.' + m + '&order=id')
+      .then(function (r) {
+        if (!r.ok) return r.text().then(function (t) { throw new Error(t.slice(0, 140)); });
+        return r.json();
+      });
+  }
+  function ws(aoa, w) {
+    var x = XLSX.utils.aoa_to_sheet(aoa);
+    x['!cols'] = (w || []).map(function (n) { return { wch: n }; });
+    return x;
+  }
+  function save(wb, name) { XLSX.writeFile(wb, name); }
+
+  /** 미분류가 남아 있으면 그 금액이 빠진 채로 만들어진다는 것을 먼저 알린다 */
+  function guardProc(m, fn) {
+    var un = {}, org = {};
+    (D.S.erpSga[m] || []).forEach(function (r) {
+      if (!r.cat) un[r.acct || '(계정없음)'] = 1;
+      var o6 = D.S.orgMap[r.mg] || D.S.orgMap[r.team_raw];
+      if (!o6 || !D.ORG2TEAM[o6]) org[r.mg || r.team_raw || '(빈칸)'] = 1;
+    });
+    var nn = Object.keys(un).length + Object.keys(org).length;
+    if (nn && !window.confirm('미분류 항목이 ' + nn + '건 있습니다.\n' +
+        '해당 금액은 집계에서 제외된 채 가공본이 만들어집니다.\n\n그래도 내려받겠습니까?')) return;
+    fn();
+  }
+
+  function procSga() {
+    var m = S.m, b = $('#btnSgaProc');
+    b.disabled = true;
+    MpXlsx.loadXlsx()
+      .then(function () { return fullRows('mp_erp_sga', m, 'adate,vno,cat,acct,descr,amt,team_raw,mg,dept,emp,wdate'); })
+      .then(function (rows) {
+        if (!rows.length) throw new Error(D.moOf(m) + '월 ERP 판관비 데이터가 없습니다.');
+        var det = rows.filter(function (r) { return r.cat; });
+        var un = rows.filter(function (r) { return !r.cat; });
+        var piv = {}, tot = 0, pivSum = 0;
+        det.forEach(function (r) {
+          var t = teamOf(r);
+          piv[t] = piv[t] || {};
+          piv[t][r.cat] = (piv[t][r.cat] || 0) + Number(r.amt || 0);
+          tot += Number(r.amt || 0);
+        });
+        var p = [[], [], ['합계 : 차변금액'], ['팀명', '이동계획', '요약']];
+        var order = D.TEAMS.map(function (t) { return t; })
+          .concat(Object.keys(piv).filter(function (t) { return D.TEAMS.indexOf(t) < 0; }).sort());
+        order.forEach(function (t) {
+          if (!piv[t]) return;
+          var sub = 0, first = true;
+          Object.keys(piv[t]).sort().forEach(function (c) {
+            sub += piv[t][c]; pivSum += piv[t][c];
+            p.push([first ? D.teamName(t) : null, c, piv[t][c]]); first = false;
+          });
+          p.push([D.teamName(t) + ' 요약', null, sub]);
+        });
+        p.push(['총합계', null, tot]);
+        if (Math.abs(pivSum - tot) > 0.5) {
+          throw new Error('검산 불일치 — 상세 ' + fmt0(tot) + ' vs 피벗 ' + fmt0(pivSum) + '. 가공본을 만들지 않습니다.');
+        }
+        var d = [SGA_COLS];
+        det.forEach(function (r) {
+          d.push([r.adate, r.vno, r.cat, r.acct, r.descr, Number(r.amt || 0), r.team_raw, r.mg, r.dept, r.emp, r.wdate]);
+        });
+        var mp = [['계정명', '이동계획']];
+        Object.keys(D.S.acctMap || {}).sort().forEach(function (k) { mp.push([k, D.S.acctMap[k]]); });
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws(p, [20, 14, 18]), 'Sheet3');
+        XLSX.utils.book_append_sheet(wb, ws(d, [12, 18, 11, 22, 46, 14, 16, 14, 16, 10, 12]), 'Sheet1');
+        XLSX.utils.book_append_sheet(wb, ws(mp, [24, 14]), 'Sheet2');
+        if (un.length) {
+          var a4 = [['⚠ 미분류 계정 — 비목이 지정되지 않아 집계에서 제외된 행'], [], SGA_COLS];
+          un.forEach(function (r) {
+            a4.push([r.adate, r.vno, '', r.acct, r.descr, Number(r.amt || 0), r.team_raw, r.mg, r.dept, r.emp, r.wdate]);
+          });
+          XLSX.utils.book_append_sheet(wb, ws(a4, [12, 18, 11, 22, 46, 14, 16, 14, 16, 10, 12]), '미분류');
+        }
+        save(wb, D.yOf(m) + '-' + p2(D.moOf(m)) + '_판관비.xlsx');
+        flash('판관비 가공본을 내려받았습니다');
+      })
+      .catch(function (e) { flash(e.message, true); })
+      .then(function () { b.disabled = false; });
+  }
+
+  function procRev() {
+    var m = S.m, b = $('#btnRevProc');
+    b.disabled = true;
+    MpXlsx.loadXlsx()
+      .then(function () { return fullRows('mp_erp_rev', m, 'no,vno,sdate,item,amt,vat,sum,cost,team,pcode,pname'); })
+      .then(function (rows) {
+        if (!rows.length) throw new Error(D.moOf(m) + '월 ERP 매출 데이터가 없습니다.');
+        var piv = {}, tr = 0, tc = 0, pr = 0, pc = 0;
+        rows.forEach(function (r) {
+          var t = r.team || '미상';
+          piv[t] = piv[t] || {};
+          var o = piv[t][r.pname || '미상'] = piv[t][r.pname || '미상'] || { r: 0, c: 0 };
+          o.r += Number(r.amt || 0); o.c += Number(r.cost || 0);
+          tr += Number(r.amt || 0); tc += Number(r.cost || 0);
+        });
+        var p = [[], [], [null, null, '데이터'], ['영업그룹', '프로젝트명', '합계 : 원화금액', '합계 : 표준원가- 금액']];
+        Object.keys(piv).sort().forEach(function (t) {
+          var sr = 0, sc = 0, first = true;
+          Object.keys(piv[t]).sort().forEach(function (nm) {
+            var o = piv[t][nm]; sr += o.r; sc += o.c; pr += o.r; pc += o.c;
+            p.push([first ? t : null, nm, o.r, o.c]); first = false;
+          });
+          p.push([t + ' 요약', null, sr, sc]);
+        });
+        p.push(['총합계', null, tr, tc]);
+        if (Math.abs(pr - tr) > 0.5 || Math.abs(pc - tc) > 0.5) {
+          throw new Error('검산 불일치 — 상세와 피벗 합계가 다릅니다. 가공본을 만들지 않습니다.');
+        }
+        var d = [REV_COLS];
+        rows.forEach(function (r) {
+          d.push([r.no, r.vno || '', r.sdate, r.item, Number(r.amt || 0), Number(r.vat || 0),
+                  Number(r.sum || 0), Number(r.cost || 0), r.team, r.pcode || '', r.pname]);
+        });
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws(p, [20, 44, 18, 22]), 'Sheet2');
+        XLSX.utils.book_append_sheet(wb, ws(d, [18, 18, 12, 12, 14, 12, 14, 14, 16, 14, 44]), 'Sheet1');
+        save(wb, D.yOf(m) + '-' + p2(D.moOf(m)) + '_매출현황.xlsx');
+        flash('매출현황 가공본을 내려받았습니다');
+      })
+      .catch(function (e) { flash(e.message, true); })
+      .then(function () { b.disabled = false; });
+  }
+
+  function teamOf(r) {
+    var o6 = D.S.orgMap[r.mg] || D.S.orgMap[r.team_raw] || null;
+    return (o6 && D.ORG2TEAM[o6]) || '미배분';
+  }
+  function p2(x) { return (x < 10 ? '0' : '') + x; }
+
+  /** 비교표 — 팀별 대사 · 판관비 대사 · 프로젝트 집계 */
+  function xlsxErp() {
+    var m = S.m, b = $('#btnErpXlsx'), ag = D.erpAgg(m);
+    if (!ag) { flash('해당 월 ERP 데이터가 없습니다', true); return; }
+    b.disabled = true;
+    MpXlsx.loadXlsx().then(function () {
+      var lb = D.yOf(m) + '년 ' + D.moOf(m) + '월';
+      var n1 = function (v) { return v == null ? null : Math.round(v * 10) / 10; };
+      var a1 = [[lb + ' 이동계획(OL) vs ERP 확정 대사'], ['단위 : 백만원'], [],
+        ['팀', '매출_계획', '매출_OL', '매출_ERP', '매출_Δ', '원가_OL', '원가_ERP', '원가_Δ',
+         '판관비_OL', '판관비_ERP', '판관비_Δ', '차이 사유']];
+      D.TEAMS.forEach(function (t) {
+        var pl = K.metrics(m, t, 'plan'), o = K.metrics(m, t, 'ol'), e = ag.byTeam[t] || { rev: 0, cost: 0, sga: 0 };
+        var nt = D.findNote('erpdiff', m, t, null, null, null);
+        a1.push([D.teamName(t), n1(pl.rev), n1(o.rev), n1(e.rev), n1(e.rev - (o.rev || 0)),
+                 n1(o.cost), n1(e.cost), n1(e.cost - (o.cost || 0)),
+                 n1(o.sga), n1(e.sga), n1(e.sga - (o.sga || 0)), nt ? nt.body : '']);
+      });
+      if (ag.unassigned && (Math.abs(ag.unassigned.rev) >= 0.05 || Math.abs(ag.unassigned.sga) >= 0.05)) {
+        a1.push(['미배분(조직 매핑 없음)', null, null, n1(ag.unassigned.rev), null,
+                 null, n1(ag.unassigned.cost), null, null, n1(ag.unassigned.sga), null, '']);
+      }
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws(a1, [16, 11, 11, 11, 10, 11, 11, 10, 11, 11, 10, 50]), '팀별 대사');
+      var a2 = [['판관비 계정별 대사'], [], ['계정', '최종 OL', 'ERP 확정', 'Δ']];
+      D.ITEMS['판관비'].forEach(function (c) {
+        var pl = K.OL(m, D.TOTAL, '판관비', c) || 0, er = ag.sgaCat[c] || 0;
+        a2.push([c, n1(pl), n1(er), n1(er - pl)]);
+      });
+      XLSX.utils.book_append_sheet(wb, ws(a2, [14, 12, 12, 10]), '판관비 대사');
+      var byT = {};
+      (D.S.erpRev[m] || []).forEach(function (r) {
+        var t = D.ORG2TEAM[r.team] || r.team, nm = r.pname || '(이름 없음)';
+        var o = (byT[t] = byT[t] || {})[nm] = byT[t][nm] || { cnt: 0, rev: 0, cost: 0 };
+        o.cnt++; o.rev += Number(r.amt) / 1e6; o.cost += Number(r.cost || 0) / 1e6;
+      });
+      var a3 = [['프로젝트별 ERP 집계 (백만원)'], [], ['팀', '프로젝트', '건수', '매출', '원가', '이익']];
+      Object.keys(byT).forEach(function (t) {
+        Object.keys(byT[t]).forEach(function (nm) {
+          var o = byT[t][nm];
+          a3.push([D.teamName(t), nm, o.cnt, n1(o.rev), n1(o.cost), n1(o.rev - o.cost)]);
+        });
+      });
+      XLSX.utils.book_append_sheet(wb, ws(a3, [16, 46, 7, 11, 11, 11]), '프로젝트 집계');
+      save(wb, 'ATEC_ERP_Recon_' + D.yOf(m) + p2(D.moOf(m)) + '_' + U.ymd(null, '') + '.xlsx');
+      flash('비교표를 내려받았습니다');
+    }).catch(function (e) { flash(e.message, true); })
+      .then(function () { b.disabled = false; });
+  }
+
   function bindUpload() {
     if (bindUpload.done) return;
     bindUpload.done = true;
@@ -1067,6 +1314,9 @@
         .catch(function (e) { flash(e.message, true); });
     };
     $('#btnSgaFold').onclick = function () { S.fold = !S.fold; render(); };
+    $('#btnSgaProc').onclick = function () { guardProc(S.m, procSga); };
+    $('#btnRevProc').onclick = function () { guardProc(S.m, procRev); };
+    $('#btnErpXlsx').onclick = xlsxErp;
     $('#btnErpAnalyze').onclick = analyze;
     $('#btnErpSave').onclick = save;
   }

@@ -37,7 +37,7 @@
 
   var S = {
     year: null, periods: {}, plan: {}, week: {}, detail: [], notes: [],
-    erpMeta: {}, erpRev: {}, erpSga: {}, orgMap: {}, config: {}, submit: {}, submitReady: null
+    erpMeta: {}, erpRev: {}, erpSga: {}, orgMap: {}, acctMap: {}, config: {}, submit: {}, submitReady: null
   };
 
   function key() { return Array.prototype.join.call(arguments, '|'); }
@@ -101,6 +101,8 @@
       getAll('mp_notes?select=id,kind,m,team,sec,item,k,body,updated_at&' + range + '&order=id'),
       getAll('mp_erp_meta?select=m,rev_cnt,sga_cnt&' + range + '&order=m'),
       getAll('mp_org_map?select=org,org6&order=org'),
+      /* 판관비 가공본의 계정매핑 시트에 쓴다 */
+      getAll('mp_acct_map?select=acct,cat&order=acct'),
       getAll('mp_config?select=key,val&order=key'),
       /* 이 표는 나중에 추가됐다. 아직 없는 환경에서도 나머지는 떠야 한다. */
       getAll('mp_submit?select=m,team,k,submitted_at,email,sig&' + range + '&order=m,team,k')
@@ -115,8 +117,9 @@
       S.notes = r[4];
       S.erpMeta = {}; r[5].forEach(function (x) { S.erpMeta[x.m] = x; });
       S.orgMap = {}; r[6].forEach(function (x) { S.orgMap[x.org] = x.org6; });
-      S.config = {}; r[7].forEach(function (x) { S.config[x.key] = x.val; });
-      S.submit = {}; (r[8] || []).forEach(function (x) { S.submit[key(x.m, x.team, x.k)] = x; });
+      S.acctMap = {}; (r[7] || []).forEach(function (x) { S.acctMap[x.acct] = x.cat; });
+      S.config = {}; r[8].forEach(function (x) { S.config[x.key] = x.val; });
+      S.submit = {}; (r[9] || []).forEach(function (x) { S.submit[key(x.m, x.team, x.k)] = x; });
       if (S.submitReady !== false) S.submitReady = true;
       return S;
     });

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ATEC 이동계획</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20260912d">
+<link rel="stylesheet" href="styles.css?v=20260913a">
 </head>
 <body>
 
@@ -194,13 +194,18 @@
       <!-- ===== 확정 판관비 / 매출현황 ===== -->
       <section id="p-erp" class="hide">
         <div class="gbar">
-          <div class="gline"><span class="glabel">월</span><div class="tabs" id="erpMonth"></div>
-            <div class="spacer"></div><span class="chip" id="erpState">—</span></div>
-          <div class="gline"><span class="glabel">단위</span><div class="tabs" id="erpUnit"></div>
-            <span class="glabel" style="margin-left:16px">명세</span><div class="tabs" id="erpKind"></div>
+          <div class="gline"><span class="glabel">마감 월</span><div class="tabs" id="erpMonth"></div>
+            <div class="spacer"></div>
+            <span class="chip" id="erpState">—</span>
+            <span class="chip" id="erpPrev"></span></div>
+          <div class="gline"><span class="glabel">구분</span><div class="tabs" id="erpKind"></div>
+            <span class="glabel" style="margin-left:16px">금액 표시</span><div class="tabs" id="erpUnit"></div>
             <div class="spacer"></div>
             <span class="chip" id="erpSave">—</span>
-            <button class="btn hide" id="btnErpUp">ERP 확정본 올리기</button></div>
+            <button class="btn ghost" id="btnSgaProc">판관비 가공본</button>
+            <button class="btn ghost" id="btnRevProc">매출현황 가공본</button>
+            <button class="btn" id="btnErpXlsx">비교표 엑셀</button>
+            <button class="btn red hide" id="btnErpUp">ERP 확정본 올리기</button></div>
         </div>
 
         <div class="card hide" id="erpUpCard"><div class="hd"><div><h3>ERP 확정본 등록</h3>
@@ -218,7 +223,11 @@
           </div></div>
 
         <div id="erpClose" class="hide"></div>
-        <div id="erpEmpty" class="note info hide"></div>
+        <div id="erpEmpty" class="hide"><div class="card"><div class="bd emptybox">
+          <div class="eh">확정 데이터가 없습니다</div>
+          <div class="ed" id="erpEmptyMsg"></div>
+          <button class="btn red hide" id="btnErpEmptyUp">엑셀 업로드로 이동</button>
+        </div></div></div>
 
         <div id="erpBody" class="hide">
           <div class="sec-title"><h2>최종 OL 대비 대사</h2><span id="erpSub"></span></div>
@@ -367,18 +376,18 @@
   </div>
 </div>
 
-<script src="mp-auth.js?v=20260912d"></script>
-<script src="mp-data.js?v=20260912d"></script>
-<script src="mp-calc.js?v=20260912d"></script>
-<script src="mp-ui.js?v=20260912d"></script>
-<script src="mp-xlsx.js?v=20260912d"></script>
-<script src="mp-plan.js?v=20260912d"></script>
-<script src="mp-week.js?v=20260912d"></script>
-<script src="mp-admin.js?v=20260912d"></script>
-<script src="mp-import.js?v=20260912d"></script>
-<script src="mp-sga.js?v=20260912d"></script>
-<script src="mp-erp.js?v=20260912d"></script>
-<script src="mp-report.js?v=20260912d"></script>
+<script src="mp-auth.js?v=20260913a"></script>
+<script src="mp-data.js?v=20260913a"></script>
+<script src="mp-calc.js?v=20260913a"></script>
+<script src="mp-ui.js?v=20260913a"></script>
+<script src="mp-xlsx.js?v=20260913a"></script>
+<script src="mp-plan.js?v=20260913a"></script>
+<script src="mp-week.js?v=20260913a"></script>
+<script src="mp-admin.js?v=20260913a"></script>
+<script src="mp-import.js?v=20260913a"></script>
+<script src="mp-sga.js?v=20260913a"></script>
+<script src="mp-erp.js?v=20260913a"></script>
+<script src="mp-report.js?v=20260913a"></script>
 <script>
 (function () {
   'use strict';
