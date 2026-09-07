@@ -125,6 +125,14 @@
     return authFetch(SB_URL + '/rest/v1/' + path, opts);
   }
 
+  /**
+   * 파일 보관함. 가공본 서식(빈 템플릿이 아니라 실제 서식 파일)이 여기 있다.
+   * 저장소에 두면 공개 웹에 그대로 열리므로 로그인한 사람만 받도록 이쪽에 둔다.
+   */
+  function storage(path, opts) {
+    return authFetch(SB_URL + '/storage/v1/' + path, opts);
+  }
+
   /* ---------- 토큰 들여다보기 ---------- */
   function claims() {
     var t = get(K_AT);
@@ -386,7 +394,7 @@
     aal: aal, isAal2: isAal2,
     isAdmin: isAdmin, isLead: isLead, myTeam: myTeam, canWriteTeam: canWriteTeam,
     viewOnly: viewOnly,
-    requireAuth: requireAuth, authFetch: authFetch, rest: rest,
+    requireAuth: requireAuth, authFetch: authFetch, rest: rest, storage: storage,
     token: function () { return get(K_AT); }
   };
 })(window);

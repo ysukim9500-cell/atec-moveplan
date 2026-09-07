@@ -18,14 +18,17 @@
 (function (global) {
   'use strict';
 
-  var TPL_BASE = 'tpl/';
+  /* 서식 파일에는 실제 경영 데이터가 들어 있다. 공개 저장소에 두면 그대로 열리므로
+     로그인한 사람만 받을 수 있는 곳(Supabase Storage)에 둔다. */
+  var BUCKET = 'tpl';
   var CACHE = {};
 
   function loadZip(name) {
     if (CACHE[name]) return Promise.resolve(CACHE[name]);
-    return fetch(TPL_BASE + name + '.xlsx', { cache: 'force-cache' })
+    return MpAuth.storage('object/' + BUCKET + '/' + name + '.xlsx')
       .then(function (r) {
-        if (!r.ok) throw new Error('가공본 서식 파일을 불러오지 못했습니다 (' + name + '.xlsx · ' + r.status + ')');
+        if (!r.ok) throw new Error('가공본 서식 파일을 불러오지 못했습니다 (' + name + '.xlsx · ' + r.status +
+          '). 설정 · 데이터 관리에서 서식 파일을 올려 주세요.');
         return r.arrayBuffer();
       })
       .then(function (buf) {
