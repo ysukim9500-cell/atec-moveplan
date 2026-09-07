@@ -286,7 +286,7 @@
         '<button class="btn ' + (danger ? 'red' : 'dark') + '" data-a="1">' + esc(okLabel || '확인') + '</button></div></div>';
       ASKBOX.className = 'askwrap on';
       ASKBOX.querySelector('.askbg').onclick = function () { close(false); };
-      $('button[data-a]', ASKBOX).forEach(function (b) {
+      $$('button[data-a]', ASKBOX).forEach(function (b) {
         b.onclick = function () { close(this.dataset.a === '1'); };
       });
       var ok = ASKBOX.querySelector('button[data-a="1"]');
