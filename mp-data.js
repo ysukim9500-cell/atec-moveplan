@@ -279,8 +279,17 @@
       method: 'POST', headers: PREF, body: JSON.stringify(rows)
     }).then(function () {
       rows.forEach(function (r) { S.revMap[key(r.m, r.team, r.pname)] = r; });
-      return audit('매출 매칭 자동 승계', { m: m, ref: '지난 달 이력',
-        after: rows.length + '건', via: 'web:업로드' });
+      /* 건별로 남긴다. «30건 승계» 한 줄만 남기면 무엇이 어디에 붙었는지 나중에 알 수 없다. */
+      var seq = Promise.resolve();
+      rows.forEach(function (r) {
+        seq = seq.then(function () {
+          return audit('매출 매칭 자동 승계', {
+            m: m, team: r.team, ref: r.pname,
+            before: '(없음)', after: r.item, via: 'web:업로드 · 지난 달 이력'
+          });
+        });
+      });
+      return seq;
     }).then(function () { return rows.length; });
   }
 
