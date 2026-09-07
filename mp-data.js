@@ -92,6 +92,10 @@
     S.submitReady = null;
     var lo = mOf(year, 1), hi = mOf(year, 12);
     var range = 'm=gte.' + lo + '&m=lte.' + hi;
+    /* ERP 확정본만 전년 12월까지 읽는다 — 1월 화면의 «전월» 이 그 달이다.
+       계획 · 주차 · 사유는 그 해 것만 다룬다. 범위를 같이 넓히면 쓰지도 않을
+       작년 행이 딸려 들어와 화면이 그 해 것이 아닌 값을 섞어 보게 된다. */
+    var erpRange = 'm=gte.' + mOf(year - 1, 12) + '&m=lte.' + hi;
 
     return Promise.all([
       getAll('mp_periods?select=m,state,weeks,final_k,final_src&' + range + '&order=m'),
@@ -99,7 +103,7 @@
       getAll('mp_week?select=m,team,sec,item,k,val&' + range + '&order=m,team,sec,item,k'),
       getAll('mp_detail?select=id,m,team,k,grp,item,rev,cost,note,sort&' + range + '&order=m,team,sort,id'),
       getAll('mp_notes?select=id,kind,m,team,sec,item,k,body,updated_at&' + range + '&order=id'),
-      getAll('mp_erp_meta?select=m,rev_cnt,sga_cnt&' + range + '&order=m'),
+      getAll('mp_erp_meta?select=m,rev_cnt,sga_cnt&' + erpRange + '&order=m'),
       getAll('mp_org_map?select=org,org6&order=org'),
       /* 판관비 가공본의 계정매핑 시트에 쓴다 */
       getAll('mp_acct_map?select=acct,cat&order=acct'),

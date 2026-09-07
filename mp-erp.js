@@ -226,7 +226,7 @@
     pv.className = 'chip ' + (hasPrev ? '' : 'warn');
     pv.innerHTML = hasPrev
       ? '전월 비교 · <b>' + D.yOf(prevM) + '년 ' + D.moOf(prevM) + '월</b>'
-      : '전월(' + D.moOf(prevM) + '월) 확정 데이터 없음 — 전월 대비 분석 불가';
+      : '전월(' + ymLabel(prevM) + ') 확정 데이터 없음 — 전월 대비 분석 불가';
     st.innerHTML = D.yOf(m) + '년 ' + D.moOf(m) + '월 마감 · 매출 <b>' + meta.rev_cnt +
       '</b>건 / 판관비 <b>' + meta.sga_cnt + '</b>건';
     $('#erpEmpty').classList.add('hide');
@@ -519,8 +519,8 @@
     var cur = foldSga(m), prv = hasPrev ? foldSga(prevM) : {};
 
     $('#sgaPrev').innerHTML = hasPrev
-      ? '전월(' + D.moOf(prevM) + '월) 확정본과 비교합니다. 규모 막대는 <b>증감률</b> 크기입니다 — 금액이 아닙니다.'
-      : '<b>' + D.moOf(prevM) + '월 확정본이 없어</b> 전월 비교는 비어 있습니다. 당월 금액과 최종 OL 대비만 나옵니다.';
+      ? '전월(' + ymLabel(prevM) + ') 확정본과 비교합니다. 규모 막대는 <b>증감률</b> 크기입니다 — 금액이 아닙니다.'
+      : '<b>' + ymLabel(prevM) + ' 확정본이 없어</b> 전월 비교는 비어 있습니다. 당월 금액과 최종 OL 대비만 나옵니다.';
 
     renderSgaValid(m, cur, prv, hasPrev);
     renderSgaTeam(m, cur, prv, hasPrev);
@@ -648,6 +648,10 @@
   }
 
   function ymFull(m) { return D.yOf(m) + '년 ' + D.moOf(m) + '월'; }
+  /** 그 해 달은 «1월», 다른 해 달은 «2025년 12월» — 연도가 다를 때만 연도를 적는다 */
+  function ymLabel(m) {
+    return (D.yOf(m) === (D.S.year || 2026)) ? (D.moOf(m) + '월') : ymFull(m);
+  }
   function ymShort(m) { var v = D.moOf(m); return (v < 10 ? '0' : '') + v + '월'; }
   function pctS(r) {
     if (r == null || isNaN(r) || !isFinite(r)) return '–';
@@ -1007,7 +1011,7 @@
     var ch = '<colgroup><col style="width:15%"><col style="width:17%"><col style="width:17%">' +
       '<col style="width:17%"><col style="width:17%"><col style="width:17%"></colgroup>' +
       '<thead><tr><th>비목</th>' +
-      '<th class="n prevcol">' + (hasPrev ? '전월' : '전월') + '</th>' +
+      '<th class="n prevcol">' + (hasPrev ? ymShort(m - 1) : '전월') + '</th>' +
       '<th class="n olcol">최종 OL</th>' +
       '<th class="n curcol">당월 확정</th>' +
       '<th class="n bl">전월 대비</th>' +
@@ -1221,7 +1225,7 @@
 
     $('#revNote').innerHTML = '팀 합계 행에서 전월 · 최종 OL 과 비교하고, 그 아래에서 프로젝트별 실제 변동을 봅니다. ' +
       '<b>프로젝트 단위에는 대응하는 OL 금액이 없어</b> 확정치만 표시합니다.' +
-      (hasPrev ? '' : ' 전월(' + D.moOf(prevM) + '월) 확정본이 없어 전월 대비는 비어 있습니다.');
+      (hasPrev ? '' : ' 전월(' + ymLabel(prevM) + ') 확정본이 없어 전월 대비는 비어 있습니다.');
   }
 
   /* ==========================================================================
@@ -1379,7 +1383,17 @@
       return;
     }
     UP.m = ms[0];
-    if (D.yOf(UP.m) !== 2026) { upLog('2026년 자료가 아닙니다 — ' + D.yOf(UP.m) + '년.', 'er'); return; }
+    /* 그 해 것과, 1월의 «전월» 인 전년 12월까지 받는다.
+       전년 12월은 비교 기준으로만 쓴다 — 탭에 세우지 않고 계획도 붙지 않는다. */
+    var yr = D.S.year || 2026, prevDec = D.mOf(yr - 1, 12);
+    if (D.yOf(UP.m) !== yr && UP.m !== prevDec) {
+      upLog(yr + '년 자료가 아닙니다 — ' + ymLabel(UP.m) + '. ' +
+        yr + '년 각 월과 ' + ymLabel(prevDec) + '(1월 비교 기준)까지만 받습니다.', 'er');
+      return;
+    }
+    if (UP.m === prevDec) {
+      upLog(ymLabel(prevDec) + ' 은 <b>1월의 전월 비교 기준</b>으로만 씁니다 — 탭에는 세우지 않습니다.', 'wn');
+    }
 
     /* 비목·조직 매핑에서 빠지는 건은 미리 알린다 — 올린 뒤에 알면 늦다 */
     if (UP.sga) {
@@ -1399,15 +1413,15 @@
     }
 
     var ex = D.S.erpMeta[UP.m];
-    if (ex) upLog('이미 ' + D.moOf(UP.m) + '월 확정본이 있습니다 (매출 ' + ex.rev_cnt + ' · 판관비 ' + ex.sga_cnt +
+    if (ex) upLog('이미 ' + ymLabel(UP.m) + ' 확정본이 있습니다 (매출 ' + ex.rev_cnt + ' · 판관비 ' + ex.sga_cnt +
       '건). 올리면 <b>이번 파일로 바뀝니다</b>.', 'wn');
     if (D.isFinal(UP.m)) {
       upLog(D.moOf(UP.m) + '월은 <b>최종확정</b>되어 있습니다. 먼저 <b>설정 · 데이터 관리</b>에서 확정을 해제하세요.', 'er');
       return;
     }
-    upLog('<b>' + D.moOf(UP.m) + '월</b>로 등록할 준비가 되었습니다.', 'ok');
+    upLog('<b>' + ymLabel(UP.m) + '</b>로 등록할 준비가 되었습니다.', 'ok');
     $('#btnErpSave').disabled = false;
-    $('#btnErpSave').textContent = D.moOf(UP.m) + '월 확정본 등록';
+    $('#btnErpSave').textContent = ymLabel(UP.m) + ' 확정본 등록';
   }
 
   function post(table, rows, onConflict) {
@@ -1436,7 +1450,7 @@
   function saveErp() {
     var m = UP.m, b = $('#btnErpSave');
     if (m == null) return;
-    U.ask(D.moOf(m) + '월 ERP 확정본 등록',
+    U.ask(ymLabel(m) + ' ERP 확정본 등록',
       (UP.rev ? '매출현황 ' + UP.rev.rows.length + '건\n' : '') +
       (UP.sga ? '판관비 ' + UP.sga.rows.length + '건\n' : '') +
       '\n기존 ' + D.moOf(m) + '월 확정본이 있으면 이 파일로 바뀝니다.', '등록', true)
@@ -1491,8 +1505,11 @@
         K.bust();
         upLog('<b>등록 완료</b> — 아래 대사표가 갱신되었습니다.', 'ok');
         b.textContent = '등록 완료';
-        S.m = m; S.open = {};
-        flash(D.moOf(m) + '월 확정본을 등록했습니다');
+        /* 전년 12월은 탭이 없다. 그 달로 옮기면 빈 화면이 된다 —
+           비교가 새로 생기는 다음 달(1월)로 옮겨 결과를 바로 보이게 한다. */
+        S.m = (D.yOf(m) === (D.S.year || 2026)) ? m : (m + 1);
+        S.open = {};
+        flash(ymLabel(m) + ' 확정본을 등록했습니다');
         render();
       })
       .catch(function (e) {
@@ -1763,7 +1780,9 @@
     S: S,
     open: function (m) {
       bindUpload();
-      var months = D.erpMonths();
+      /* 전년 12월은 비교 기준일 뿐이라 기본 선택 후보에서 뺀다 */
+      var yr = D.S.year || 2026;
+      var months = D.erpMonths().filter(function (x) { return D.yOf(x) === yr; });
       if (m != null && D.S.erpMeta[m]) S.m = m;
       else if (S.m == null) S.m = months.length ? months[months.length - 1] : (m || D.mOf(2026, 7));
       /* 전월도 같이 읽어야 비교가 된다 */
