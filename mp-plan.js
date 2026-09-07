@@ -254,7 +254,9 @@
 
     /* 영업이익 · 공판 · 공판후 */
     TAIL.forEach(function (p) {
-      var sec = p[0], leaf = (sec === '공판') && canEdit();
+      /* 공판은 매출 × 공판율로 계산한다. 입력칸을 열면 쳐 넣어도 무시되어
+         «저장했는데 안 바뀐다» 가 된다. 공판율은 설정 화면에서 바꾼다. */
+      var sec = p[0], leaf = false;
       var pv = K.PL(m, team, sec, '계');
       h += '<tr class="' + (sec === '공판' ? '' : 'op') + '"><td class="sec">' + p[1] + '</td>' +
         '<td class="itc">' + (sec === '공판' ? '소계' : '') + '</td>' +

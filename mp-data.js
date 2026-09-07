@@ -22,7 +22,10 @@
   /* 저장하는 리프 — 나머지는 전부 파생 */
   var LEAF = {
     '매출': ITEMS['매출'], '매출원가': ITEMS['매출원가'],
-    '매출이익': ['개발비'], '판관비': ITEMS['판관비'], '공판': ['계']
+    /* 공판은 매출 × 공판율이라 파생값이다. 저장 리프에서 뺀다 —
+       계획·OL 은 사람이 친 숫자, 확정은 계산값이라 두 정의가 갈려 있었다.
+       (이관된 값 115건이 전부 매출×4.3% 와 일치해 숫자는 달라지지 않는다) */
+    '매출이익': ['개발비'], '판관비': ITEMS['판관비'], '공판': []
   };
 
   /* ERP 보고조직(6) → 이동계획 팀 */
@@ -48,16 +51,28 @@
       return r.json();
     });
   }
-  /* PostgREST 기본 상한을 넘길 수 있으므로 나눠 받는다 */
+  /**
+   * PostgREST 기본 상한을 넘길 수 있으므로 나눠 받는다.
+   *
+   * 두 가지를 지켜야 한다.
+   *  · 정렬이 없으면 Postgres 가 장마다 같은 순서를 보장하지 않아
+   *    행이 중복되거나 빠진다. 부르는 쪽이 반드시 order 를 붙인다.
+   *  · 서버 상한(db-max-rows)이 1000 보다 작으면 첫 장이 STEP 미만으로 와서
+   *    «다 받았다»고 착각한다. 그래서 받은 만큼만 나아가고, 빈 장이 올 때 끝낸다.
+   */
   function getAll(path) {
-    var out = [], STEP = 1000;
+    if (path.indexOf('order=') < 0 && path.indexOf('limit=') < 0) {
+      console.warn('getAll: 정렬 없이 페이징한다 — ' + path.split('?')[0]);
+    }
+    var out = [], STEP = 1000, guard = 0;
     var step = function (from) {
       return MpAuth.rest(path, { headers: { Range: from + '-' + (from + STEP - 1) } })
         .then(function (r) {
           if (!r.ok) return r.text().then(function (t) { throw new Error(path.split('?')[0] + ' ' + r.status + ' — ' + t.slice(0, 140)); });
           return r.json().then(function (rows) {
             out = out.concat(rows);
-            return rows.length < STEP ? out : step(from + STEP);
+            if (!rows.length || ++guard > 200) return out;
+            return step(from + rows.length);
           });
         });
     };
@@ -71,16 +86,16 @@
     var range = 'm=gte.' + lo + '&m=lte.' + hi;
 
     return Promise.all([
-      getAll('mp_periods?select=m,state,weeks,final_k,final_src&' + range),
-      getAll('mp_plan?select=m,team,sec,item,val&' + range),
-      getAll('mp_week?select=m,team,sec,item,k,val&' + range),
-      getAll('mp_detail?select=id,m,team,k,grp,item,rev,cost,note,sort&' + range + '&order=m,team,sort'),
-      getAll('mp_notes?select=id,kind,m,team,sec,item,k,body&' + range),
-      getAll('mp_erp_meta?select=m,rev_cnt,sga_cnt&' + range),
-      getAll('mp_org_map?select=org,org6'),
-      getAll('mp_config?select=key,val'),
+      getAll('mp_periods?select=m,state,weeks,final_k,final_src&' + range + '&order=m'),
+      getAll('mp_plan?select=m,team,sec,item,val&' + range + '&order=m,team,sec,item'),
+      getAll('mp_week?select=m,team,sec,item,k,val&' + range + '&order=m,team,sec,item,k'),
+      getAll('mp_detail?select=id,m,team,k,grp,item,rev,cost,note,sort&' + range + '&order=m,team,sort,id'),
+      getAll('mp_notes?select=id,kind,m,team,sec,item,k,body&' + range + '&order=id'),
+      getAll('mp_erp_meta?select=m,rev_cnt,sga_cnt&' + range + '&order=m'),
+      getAll('mp_org_map?select=org,org6&order=org'),
+      getAll('mp_config?select=key,val&order=key'),
       /* 이 표는 나중에 추가됐다. 아직 없는 환경에서도 나머지는 떠야 한다. */
-      getAll('mp_submit?select=m,team,k,submitted_at,email,sig&' + range)
+      getAll('mp_submit?select=m,team,k,submitted_at,email,sig&' + range + '&order=m,team,k')
         .catch(function () { S.submitReady = false; return []; })
     ]).then(function (r) {
       S.periods = {}; r[0].forEach(function (p) { S.periods[p.m] = p; });
@@ -104,8 +119,8 @@
     if (S.erpRev[m] && S.erpSga[m]) return Promise.resolve(true);
     if (!S.erpMeta[m]) return Promise.resolve(false);
     return Promise.all([
-      getAll('mp_erp_rev?select=amt,cost,team,pname&m=eq.' + m),
-      getAll('mp_erp_sga?select=amt,cat,acct,mg,team_raw,descr&m=eq.' + m)
+      getAll('mp_erp_rev?select=amt,cost,team,pname&m=eq.' + m + '&order=id'),
+      getAll('mp_erp_sga?select=amt,cat,acct,mg,team_raw,descr&m=eq.' + m + '&order=id')
     ]).then(function (r) { S.erpRev[m] = r[0]; S.erpSga[m] = r[1]; return true; });
   }
 
@@ -301,8 +316,8 @@
   /* 이동계획 팀원 */
   function loadMembers() {
     return Promise.all([
-      getAll('profiles?select=id,email,name,role,status&order=name'),
-      getAll('mp_members?select=user_id,team,mp_role')
+      getAll('profiles?select=id,email,name,role,status&order=name,id'),
+      getAll('mp_members?select=user_id,team,mp_role&order=user_id')
     ]).then(function (r) {
       var by = {}; r[1].forEach(function (x) { by[x.user_id] = x; });
       return r[0].map(function (p) {

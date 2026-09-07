@@ -107,7 +107,13 @@
       var g = V(m, team, '매출이익', '합계', k), p = V(m, team, '판관비', '합계', k);
       return (g == null && p == null) ? null : r4((g || 0) - (p || 0));
     }
-    if (sec === '공판') return raw(m, team, '공판', '계', k);
+    /* 공판 = 매출 × 공판율. 저장된 값을 읽지 않는다 —
+       계획·OL 과 확정 실적이 서로 다른 정의를 쓰면 «차이» 열이 무의미해진다.
+       공판율을 바꾸면 계획·OL·실적이 함께 움직여야 한다. */
+    if (sec === '공판') {
+      var rv = V(m, team, '매출', '합계', k);
+      return rv == null ? null : r4(rv * D.gpRate());
+    }
     if (sec === '공판후영업이익') {
       var o = V(m, team, '영업이익', '계', k), gp = V(m, team, '공판', '계', k);
       return (o == null && gp == null) ? null : r4((o || 0) - (gp || 0));
