@@ -97,7 +97,16 @@
       return item === '합계' ? sumItems(m, team, sec, k) : raw(m, team, sec, item, k);
     }
     if (sec === '매출이익') {
-      if (item === '합계') return sumItems(m, team, '매출이익', k);
+      /* 항목별 합이 아니라 «매출 − 매출원가 + 개발비» 로 낸다.
+         항목별로 더하면 매출원가에 들어간 개발비가 어디에도 반영되지 않아
+         손으로 세 줄을 검산하는 사람에게 그만큼 안 맞는다. */
+      if (item === '합계') {
+        var rv = V(m, team, '매출', '합계', k);
+        var cs = V(m, team, '매출원가', '합계', k);
+        var dv = V(m, team, '매출이익', '개발비', k);
+        if (rv == null && cs == null && dv == null) return null;
+        return r4((rv || 0) - (cs || 0) + (dv || 0));
+      }
       if (item === '개발비') return raw(m, team, '매출이익', '개발비', k);
       var a = V(m, team, '매출', item, k), b = V(m, team, '매출원가', item, k);
       if (a == null && b == null) return null;

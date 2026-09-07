@@ -90,7 +90,7 @@
       getAll('mp_plan?select=m,team,sec,item,val&' + range + '&order=m,team,sec,item'),
       getAll('mp_week?select=m,team,sec,item,k,val&' + range + '&order=m,team,sec,item,k'),
       getAll('mp_detail?select=id,m,team,k,grp,item,rev,cost,note,sort&' + range + '&order=m,team,sort,id'),
-      getAll('mp_notes?select=id,kind,m,team,sec,item,k,body&' + range + '&order=id'),
+      getAll('mp_notes?select=id,kind,m,team,sec,item,k,body,updated_at&' + range + '&order=id'),
       getAll('mp_erp_meta?select=m,rev_cnt,sga_cnt&' + range + '&order=m'),
       getAll('mp_org_map?select=org,org6&order=org'),
       getAll('mp_config?select=key,val&order=key'),
@@ -186,8 +186,8 @@
   function unsubmit(m, team, k) {
     var old = S.submit[key(m, team, k)];
     delete S.submit[key(m, team, k)];
-    return send('mp_submit?m=eq.' + m + '&team=eq.' + encodeURIComponent(team) + '&k=eq.' + k,
-      { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+    return sendOne('mp_submit?m=eq.' + m + '&team=eq.' + encodeURIComponent(team) + '&k=eq.' + k,
+      { method: 'DELETE' })
       .catch(function (e) { if (old) S.submit[key(m, team, k)] = old; throw e; });
   }
 
@@ -216,6 +216,31 @@
     });
   }
   var PREF = { Prefer: 'resolution=merge-duplicates,return=minimal' };
+
+  /**
+   * 반드시 무언가를 바꿔야 하는 요청.
+   *
+   * PostgREST 는 RLS 가 걸러 0행을 고쳐도 204 를 준다. r.ok 만 보면
+   * «저장됨» 이 뜨고 화면에서는 사라졌는데 서버는 그대로다 —
+   * 새로고침하면 되살아나고, 그동안 사용자는 지운 줄 알고 다음 작업을 한다.
+   * 그래서 바뀐 행을 돌려받아 정말 바뀌었는지 본다.
+   */
+  function sendOne(path, opts) {
+    opts = opts || {};
+    var h = {};
+    Object.keys(opts.headers || {}).forEach(function (k) { h[k] = opts.headers[k]; });
+    h.Prefer = 'return=representation';
+    var o = { method: opts.method, headers: h };
+    if (opts.body) o.body = opts.body;
+    return send(path, o).then(function (r) {
+      return r.json().then(function (rows) {
+        if (!rows || !rows.length) {
+          throw new Error('서버가 아무 행도 바꾸지 않았습니다. 권한이 없거나, 그 사이 다른 사람이 지웠을 수 있습니다. 새로고침해 확인해 주세요.');
+        }
+        return rows;
+      });
+    });
+  }
 
   function setPlan(m, team, sec, item, val) {
     var k = key(m, team, sec, item), old = S.plan[k];
@@ -263,25 +288,66 @@
     body = (body || '').trim();
     var ex = findNote(kind, m, team, sec, item, wk);
     if (ex) {
-      var old = ex.body;
+      var old = ex.body, stamp = ex.updated_at;
       ex.body = body;
+      /* 사업부합계 사유는 관리자 여럿이 같은 칸을 쓴다. 내가 읽은 뒤에 남이 고쳤으면
+         덮어쓰지 않고 알린다 — 조용히 지워지면 쓴 사람도 모른다. */
+      var cond = 'mp_notes?id=eq.' + ex.id +
+                 (stamp ? '&updated_at=eq.' + encodeURIComponent(stamp) : '');
+      var clash = function (e) {
+        ex.body = old;
+        if (/아무 행도 바꾸지 않았습니다/.test(e.message)) {
+          return refreshNote(kind, m, team, sec, item, wk).then(function (cur) {
+            throw new Error('그 사이 다른 사람이 이 사유를 고쳤습니다. 저장하지 않았습니다.' +
+              (cur && cur.body ? ' 현재 내용 : ' + cur.body.slice(0, 60) : ''));
+          });
+        }
+        throw e;
+      };
       if (!body) {
-        return send('mp_notes?id=eq.' + ex.id, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+        return sendOne(cond, { method: 'DELETE' })
           .then(function () { S.notes = S.notes.filter(function (n) { return n.id !== ex.id; }); })
-          .catch(function (e) { ex.body = old; throw e; });
+          .catch(clash);
       }
-      return send('mp_notes?id=eq.' + ex.id, {
-        method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ body: body })
-      }).catch(function (e) { ex.body = old; throw e; });
+      return sendOne(cond, { method: 'PATCH', body: JSON.stringify({ body: body, updated_at: new Date().toISOString() }) })
+        .then(function (rows) { ex.updated_at = rows[0].updated_at; })
+        .catch(clash);
     }
     if (!body) return Promise.resolve();
     return MpAuth.rest('mp_notes', {
       method: 'POST', headers: { Prefer: 'return=representation' },
       body: JSON.stringify([{ kind: kind, m: m, team: team, sec: sec || null, item: item || null, k: wk, body: body }])
     }).then(function (r) {
-      if (!r.ok) return r.text().then(function (t) { throw new Error(t.slice(0, 160)); });
-      return r.json().then(function (rows) { if (rows[0]) S.notes.push(rows[0]); });
+      if (r.ok) return r.json().then(function (rows) { if (rows[0]) S.notes.push(rows[0]); });
+      return r.text().then(function (t) {
+        /* 내 화면에는 없었는데 서버에는 이미 있다 — 그 사이 다른 사람이 먼저 썼다.
+           유니크 인덱스가 식(coalesce)이라 on_conflict 를 못 쓰므로 다시 읽어 고친다. */
+        if (r.status === 409 || /duplicate key|23505/.test(t)) {
+          return refreshNote(kind, m, team, sec, item, wk).then(function () {
+            return setNote(kind, m, team, sec, item, wk, body);
+          });
+        }
+        throw new Error(t.slice(0, 160));
+      });
     });
+  }
+
+  /** 그 자리의 사유를 서버에서 다시 읽어 캐시에 맞춘다 */
+  function refreshNote(kind, m, team, sec, item, wk) {
+    var q = 'mp_notes?select=id,kind,m,team,sec,item,k,body,updated_at' +
+      '&kind=eq.' + encodeURIComponent(kind) + '&m=eq.' + m +
+      '&team=eq.' + encodeURIComponent(team) +
+      (sec ? '&sec=eq.' + encodeURIComponent(sec) : '&sec=is.null') +
+      (item ? '&item=eq.' + encodeURIComponent(item) : '&item=is.null') +
+      (wk == null ? '&k=is.null' : '&k=eq.' + wk);
+    return MpAuth.rest(q).then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (rows) {
+        S.notes = S.notes.filter(function (x) { return x.id !== (rows[0] && rows[0].id); });
+        var old = findNote(kind, m, team, sec, item, wk);
+        if (old) S.notes = S.notes.filter(function (x) { return x !== old; });
+        if (rows[0]) S.notes.push(rows[0]);
+        return rows[0] || null;
+      });
   }
 
   /* 변경 이력 — 남기기만 하고 고치거나 지우지 못한다 */
@@ -300,17 +366,31 @@
     }).catch(function () { /* 이력 실패가 본 작업을 막지는 않는다 */ });
   }
 
-  /* 월 개폐 · 확정 */
+  /**
+   * 월 개폐 · 확정.
+   *
+   * 예전에는 캐시에 있던 행 전체를 다시 써서, 그 사이 다른 관리자가 바꾼 주차 수를
+   * 옛 값으로 되돌렸다. 캐시에 그 달이 아예 없으면 기본값(1주)으로 덮어써
+   * 2~6주 입력칸이 통째로 사라지기도 했다. 넘겨받은 항목만 고친다.
+   */
   function setPeriod(m, patch) {
-    var p = periodOf(m);
-    var row = { m: m, state: patch.state != null ? patch.state : p.state,
-                weeks: patch.weeks != null ? patch.weeks : p.weeks,
-                final_k: patch.final_k !== undefined ? patch.final_k : (p.final_k == null ? null : p.final_k),
-                final_src: patch.final_src !== undefined ? patch.final_src : (p.final_src || null),
-                unlock_reason: patch.unlock_reason !== undefined ? patch.unlock_reason : (p.unlock_reason || null) };
-    return send('mp_periods?on_conflict=m', {
-      method: 'POST', headers: PREF, body: JSON.stringify([row])
-    }).then(function () { S.periods[m] = row; return row; });
+    var body = {};
+    ['state', 'weeks', 'final_k', 'final_src', 'unlock_reason'].forEach(function (k) {
+      if (patch[k] !== undefined) body[k] = patch[k];
+    });
+    return send('mp_periods?m=eq.' + m, {
+      method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(body)
+    }).then(function (r) { return r.json(); })
+      .then(function (rows) {
+        if (rows && rows.length) { S.periods[m] = rows[0]; return rows[0]; }
+        /* 그 달 행이 아직 없다 — 만든다 */
+        var full = { m: m, state: 'closed', weeks: 1, final_k: null, final_src: null, unlock_reason: null };
+        Object.keys(body).forEach(function (k) { full[k] = body[k]; });
+        return send('mp_periods', {
+          method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify([full])
+        }).then(function (r) { return r.json(); })
+          .then(function (rr) { S.periods[m] = rr[0] || full; return S.periods[m]; });
+      });
   }
 
   /* 이동계획 팀원 */
@@ -362,14 +442,14 @@
     S.detail.forEach(function (x) { if (x.id === id) d = x; });
     var old = {};
     if (d) Object.keys(patch).forEach(function (k) { old[k] = d[k]; d[k] = patch[k]; });
-    return send('mp_detail?id=eq.' + id, {
-      method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch)
+    return sendOne('mp_detail?id=eq.' + id, {
+      method: 'PATCH', body: JSON.stringify(patch)
     }).catch(function (e) { if (d) Object.keys(old).forEach(function (k) { d[k] = old[k]; }); throw e; });
   }
   function delDetail(id) {
     var keep = S.detail.slice();
     S.detail = S.detail.filter(function (x) { return x.id !== id; });
-    return send('mp_detail?id=eq.' + id, { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+    return sendOne('mp_detail?id=eq.' + id, { method: 'DELETE' })
       .catch(function (e) { S.detail = keep; throw e; });
   }
 
