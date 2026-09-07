@@ -61,7 +61,15 @@
    *    «다 받았다»고 착각한다. 그래서 받은 만큼만 나아가고, 빈 장이 올 때 끝낸다.
    */
   function getAll(path) {
-    if (path.indexOf('order=') < 0 && path.indexOf('limit=') < 0) {
+    /* limit 을 스스로 건 조회는 나눠 받지 않는다.
+       Range 를 겹쳐 보내면 PostgREST 가 음수 limit 으로 계산해 416 을 준다. */
+    if (path.indexOf('limit=') >= 0) {
+      return MpAuth.rest(path).then(function (r) {
+        if (!r.ok) return r.text().then(function (t) { throw new Error(path.split('?')[0] + ' ' + r.status + ' — ' + t.slice(0, 140)); });
+        return r.json();
+      });
+    }
+    if (path.indexOf('order=') < 0) {
       console.warn('getAll: 정렬 없이 페이징한다 — ' + path.split('?')[0]);
     }
     var out = [], STEP = 1000, guard = 0;
