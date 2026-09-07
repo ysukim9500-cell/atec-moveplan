@@ -278,10 +278,20 @@
     /* 차이 사유는 마감 뒤에 쓰는 항목이라 달이 잠겨도 막지 않는다 — RLS 도 같다.
        이 표는 사업부 합계 기준이라 팀장은 쓸 자리가 없다. */
     var can = admin();
-    var h = '<thead><tr><th style="width:150px">항목</th><th class="n" style="width:96px">월간계획</th>' +
-      '<th class="n" style="width:96px">최종 OL</th><th class="n cur" style="width:100px">확정</th>' +
-      '<th class="n" style="width:104px">OL 차이</th><th class="n" style="width:74px">달성률</th>' +
-      '<th>차이 사유</th></tr></thead><tbody>';
+    var U = (S.unit === 'M' ? '백만원' : '전체금액'), W = (S.unit !== 'M'), mw = W ? 128 : 100;
+
+    /* 열 색은 판관비 화면과 같은 규칙 : 계획은 회색 · 최종 OL 은 노랑 · 확정은 분홍.
+       세 값이 각각 어디서 온 것인지 색으로 먼저 알려 준다. */
+    var h = '<colgroup><col style="width:150px"><col style="width:' + mw + 'px">' +
+      '<col style="width:' + mw + 'px"><col style="width:' + (mw + 10) + 'px">' +
+      '<col style="width:' + (mw + 4) + 'px"><col style="width:76px"><col></colgroup>' +
+      '<thead><tr><th rowspan="2">항목</th>' +
+      '<th colspan="3" class="c grphead bl">금액 (' + U + ')</th>' +
+      '<th colspan="2" class="c grphead bl">최종 OL 대비</th>' +
+      '<th rowspan="2" class="bl">차이 사유</th></tr><tr>' +
+      '<th class="n bl plancol">월간계획</th><th class="n olcol">최종 OL</th>' +
+      '<th class="n curcol">확정</th>' +
+      '<th class="n bl">차이</th><th class="n">달성률</th></tr></thead><tbody>';
     RECON.forEach(function (r) {
       var sec = r[0], item = r[1], label = r[2], kk = key[label];
       var pv = p[kk], ov = o[kk], av = a[kk];
@@ -290,12 +300,13 @@
       var body = n ? n.body : '';
       var big = d != null && ov && Math.abs(d / ov) >= 0.05;
       h += '<tr' + (label === '공판후영업이익' ? ' class="grand"' : '') + '>' +
-        '<td><b>' + label + '</b></td>' +
-        '<td class="n gs">' + uf(pv) + '</td><td class="n">' + uf(ov) + '</td>' +
-        '<td class="n cur"><b>' + uf(av) + '</b></td>' +
-        '<td class="n ' + dcls(d) + '">' + us(d) + (big ? ' <span class="bdg">5%↑</span>' : '') + '</td>' +
+        '<td class="sec"><b>' + label + '</b></td>' +
+        '<td class="n bl plancol">' + uf(pv) + '</td>' +
+        '<td class="n olcol">' + uf(ov) + '</td>' +
+        '<td class="n curcol"><b>' + uf(av) + '</b></td>' +
+        '<td class="n bl delta ' + dcls(d) + '">' + us(d) + (big ? ' <span class="bdg">5%↑</span>' : '') + '</td>' +
         '<td class="n">' + (ov ? pct(av / ov) : '–') + '</td>' +
-        '<td class="txt">' + (can
+        '<td class="txt bl">' + (can
           ? '<textarea rows="1" class="na" data-en="' + esc(sec + '~' + item) + '" placeholder="' +
             (big ? '차이가 5% 를 넘습니다 — 사유를 적어 주세요' : '차이 사유') + '">' + esc(body) + '</textarea>'
           : (body ? esc(body) : '<span class="zero">–</span>')) + '</td></tr>';
@@ -305,39 +316,52 @@
       if (label === '매출이익') {
         var dev = a.dev || 0;
         h += '<tr class="devrow"><td class="txt">└ 개발비 <span class="bdg">ERP 미계상</span></td>' +
-          '<td class="n gs">' + uf(K.PL(m, D.TOTAL, '매출이익', '개발비')) + '</td>' +
-          '<td class="n">' + uf(dev) + '</td><td class="n cur">' + uf(dev) + '</td>' +
-          '<td class="n flat">0.0</td><td class="n">–</td>' +
-          '<td class="txt q">ERP 에 계상되지 않아 최종 OL 값을 그대로 반영합니다. ' +
+          '<td class="n bl plancol">' + uf(K.PL(m, D.TOTAL, '매출이익', '개발비')) + '</td>' +
+          '<td class="n olcol">' + uf(dev) + '</td><td class="n curcol">' + uf(dev) + '</td>' +
+          '<td class="n bl delta flat">' + us(0) + '</td><td class="n">–</td>' +
+          '<td class="txt bl q">ERP 에 계상되지 않아 최종 OL 값을 그대로 반영합니다. ' +
           '매출이익 = 매출 − 매출원가 + 개발비.</td></tr>';
       }
     });
     $('#tblErpRecon').innerHTML = h + '</tbody>';
     bindNotes(m);
 
-    /* 팀별 대사 */
-    var th = '<thead><tr><th>팀</th>' +
-      '<th class="n">OL 매출</th><th class="n cur">확정 매출</th><th class="n">차이</th>' +
-      '<th class="n">OL 판관비</th><th class="n cur">확정 판관비</th><th class="n">차이</th>' +
-      '<th class="n">확정 공판후영업이익</th></tr></thead><tbody>';
+    /* ---------- 팀별 대사 ----------
+       매출과 판관비를 열 묶음으로 갈라 놓는다. 한 줄에 여섯 숫자가 나란히 있으면
+       어느 셋이 매출이고 어느 셋이 판관비인지 매번 헤더로 되짚어야 한다. */
+    var th = '<colgroup><col style="width:150px">' +
+      '<col style="width:' + mw + 'px"><col style="width:' + (mw + 10) + 'px"><col style="width:' + mw + 'px">' +
+      '<col style="width:' + mw + 'px"><col style="width:' + (mw + 10) + 'px"><col style="width:' + mw + 'px">' +
+      '<col style="width:' + (mw + 14) + 'px"></colgroup>' +
+      '<thead><tr><th rowspan="2" class="stick s1">팀</th>' +
+      '<th colspan="3" class="c grphead bl">매출 (' + U + ')</th>' +
+      '<th colspan="3" class="c grphead bl">판관비 (' + U + ')</th>' +
+      '<th rowspan="2" class="n bl">확정 공판후영업이익</th></tr><tr>' +
+      '<th class="n bl olcol">최종 OL</th><th class="n curcol">확정</th><th class="n">차이</th>' +
+      '<th class="n bl olcol">최종 OL</th><th class="n curcol">확정</th><th class="n">차이</th>' +
+      '</tr></thead><tbody>';
     D.TEAMS.forEach(function (t) {
       var ta = K.act(m, t), to = K.metrics(m, t, 'ol');
       if (!ta) return;
       var dr = to.rev == null ? null : ta.rev - to.rev;
       var ds = to.sga == null ? null : ta.sga - to.sga;
-      th += '<tr><td>' + esc(D.teamName(t)) + '</td>' +
-        '<td class="n">' + uf(to.rev) + '</td><td class="n cur"><b>' + uf(ta.rev) + '</b></td>' +
-        '<td class="n ' + dcls(dr) + '">' + us(dr) + '</td>' +
-        '<td class="n">' + uf(to.sga) + '</td><td class="n cur"><b>' + uf(ta.sga) + '</b></td>' +
-        '<td class="n ' + dcls(ds) + '">' + us(ds) + '</td>' +
-        '<td class="n">' + uf(ta.op2) + '</td></tr>';
+      th += '<tr><td class="sec stick s1">' + esc(D.teamName(t)) + '</td>' +
+        '<td class="n bl olcol">' + uf(to.rev) + '</td>' +
+        '<td class="n curcol"><b>' + uf(ta.rev) + '</b></td>' +
+        '<td class="n delta ' + dcls(dr) + '">' + us(dr) + '</td>' +
+        '<td class="n bl olcol">' + uf(to.sga) + '</td>' +
+        '<td class="n curcol"><b>' + uf(ta.sga) + '</b></td>' +
+        '<td class="n delta ' + dcls(ds) + '">' + us(ds) + '</td>' +
+        '<td class="n bl">' + uf(ta.op2) + '</td></tr>';
     });
-    th += '<tr class="grand"><td>사업부 합계</td>' +
-      '<td class="n">' + uf(o.rev) + '</td><td class="n cur">' + uf(a.rev) + '</td>' +
-      '<td class="n ' + dcls(o.rev == null ? null : a.rev - o.rev) + '">' + us(o.rev == null ? null : a.rev - o.rev) + '</td>' +
-      '<td class="n">' + uf(o.sga) + '</td><td class="n cur">' + uf(a.sga) + '</td>' +
-      '<td class="n ' + dcls(o.sga == null ? null : a.sga - o.sga) + '">' + us(o.sga == null ? null : a.sga - o.sga) + '</td>' +
-      '<td class="n">' + uf(a.op2) + '</td></tr>';
+    th += '<tr class="grand"><td class="stick s1">사업부 합계</td>' +
+      '<td class="n bl">' + uf(o.rev) + '</td><td class="n"><b>' + uf(a.rev) + '</b></td>' +
+      '<td class="n delta ' + dcls(o.rev == null ? null : a.rev - o.rev) + '">' +
+        us(o.rev == null ? null : a.rev - o.rev) + '</td>' +
+      '<td class="n bl">' + uf(o.sga) + '</td><td class="n"><b>' + uf(a.sga) + '</b></td>' +
+      '<td class="n delta ' + dcls(o.sga == null ? null : a.sga - o.sga) + '">' +
+        us(o.sga == null ? null : a.sga - o.sga) + '</td>' +
+      '<td class="n bl">' + uf(a.op2) + '</td></tr>';
     $('#tblErpTeam').innerHTML = th + '</tbody>';
 
     /* 팀에 배분되지 않은 판관비 — 조직 매핑이 빠지면 여기 남는다 */

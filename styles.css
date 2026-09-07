@@ -843,3 +843,26 @@ td.b{font-weight:700}
 .tbl-wrap.sticky td.sec.stick{background:var(--soft)}
 .tbl-wrap.sticky tr.teamsum td.stick{background:#F1F4F6}
 .tbl-wrap.sticky tr.grand td.stick{background:#E9ECEE}
+
+/* ============================================================
+   최종 OL 대비 대사 — 판관비 · 매출 명세와 같은 열 색 규칙
+   계획(월간계획) 회색 · 최종 OL 노랑 · 확정 분홍
+   ============================================================ */
+th.plancol{background:var(--band-plan)!important;color:var(--ink2)}
+td.plancol{background:var(--band-plan);color:var(--muted);font-weight:400}
+
+#tblErpRecon{table-layout:fixed;width:100%;min-width:900px}
+#tblErpRecon td.sec{font-weight:700}
+#tblErpRecon td.olcol{font-size:12.5px}
+#tblErpRecon td.curcol{font-size:13.5px}
+#tblErpRecon td.txt{white-space:normal}
+#tblErpRecon tr.devrow td.plancol,#tblErpRecon tr.devrow td.olcol,
+#tblErpRecon tr.devrow td.curcol{background:var(--soft)}
+#p-erp.won #tblErpRecon{min-width:1120px}
+
+#tblErpTeam{table-layout:fixed;width:100%;min-width:1000px}
+#tblErpTeam td.sec{font-weight:700}
+#tblErpTeam td.olcol{font-size:12.5px;color:var(--ink2);font-weight:400}
+#tblErpTeam td.curcol{font-size:13.5px}
+#tblErpTeam tr.grand td.curcol,#tblErpTeam tr.grand td.olcol{background:transparent}
+#p-erp.won #tblErpTeam{min-width:1240px}
