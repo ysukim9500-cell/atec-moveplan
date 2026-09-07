@@ -866,3 +866,7 @@ td.plancol{background:var(--band-plan);color:var(--muted);font-weight:400}
 #tblErpTeam td.curcol{font-size:13.5px}
 #tblErpTeam tr.grand td.curcol,#tblErpTeam tr.grand td.olcol{background:transparent}
 #p-erp.won #tblErpTeam{min-width:1240px}
+
+/* 당월 없음 프로젝트 — 사라진 줄은 «확정» 강조를 벗기고 바탕을 눌러 둔다 */
+#tblRevTeam tr.projrow.gone td{background:#FBFBFC}
+#tblRevTeam td.curcol.off{background:transparent;color:var(--faint);font-weight:400}

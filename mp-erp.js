@@ -1164,12 +1164,19 @@
       Object.keys(pp).forEach(function (k) { if (pp[k].team === t) names[pp[k].name] = 1; });
       var rows = Object.keys(names).map(function (nm) {
         var c = (pc[t + '||' + nm] || {}).rev || 0, p = (pp[t + '||' + nm] || {}).rev || 0;
-        return { name: nm, c: c, p: p, d: c - p, gone: (c === 0 && p > 0), neu: (p === 0 && c > 0) };
+        var gone = (c === 0 && p > 0);
+        return { name: nm, c: c, p: p, d: c - p, gone: gone, neu: (p === 0 && !gone) };
       }).filter(function (r) { return hasPrev ? (Math.abs(r.d) > 0.0005 || r.c > 0) : r.c > 0; });
+      /* 정렬 : ① 신규 ② 전월에도 있던 것 ③ 당월 없음.
+         ①②는 당월 확정이 큰 순 — 지금 무엇이 큰지가 먼저다.
+         ②에서 금액이 같으면 증감이 작은(줄어든) 것을 위로 — 같은 규모면 나빠진 쪽이 먼저 눈에 와야 한다.
+         ③은 당월 값이 없으니 전월이 큰 순 — 무엇이 사라졌는지의 크기다. */
       rows.sort(function (a, b) {
         var ga = a.gone ? 2 : (a.neu ? 0 : 1), gb = b.gone ? 2 : (b.neu ? 0 : 1);
         if (ga !== gb) return ga - gb;
-        return Math.abs(b.d || b.c) - Math.abs(a.d || a.c);
+        if (ga === 2) return b.p - a.p;
+        if (b.c !== a.c) return b.c - a.c;
+        return a.d - b.d;
       });
 
       tot.c += cRev;
@@ -1196,7 +1203,7 @@
             (r.gone ? ' <span class="bdg gone">당월 없음</span>' : '') + '</td>' +
           '<td class="n bl prevcol">' + (hasPrev ? uf(r.p) : '–') + '</td>' +
           '<td class="n olcol zero">–</td>' +
-          '<td class="n curcol">' + uf(r.c) + '</td>' +
+          '<td class="n curcol' + (r.gone ? ' off' : '') + '">' + uf(r.c) + '</td>' +
           '<td class="n bl delta ' + (hasPrev ? dcls(r.d) : 'flat') + '">' + (hasPrev ? us(r.d) : '–') + '</td>' +
           '<td class="n olcol zero">–</td></tr>';
       });
