@@ -382,5 +382,5 @@ insert into mp_config (key, val) values
 on conflict (key) do nothing;
 
 insert into mp_config (key, val) values
-  ('teams', '["광역버스사업팀","택시지원팀","리페어팀","수도권버스지원팀","AFC지원파트","실공통"]'::jsonb)
+  ('teams', '["광역교통지원팀","택시지원팀","리페어팀","수도권버스지원팀","AFC지원파트","실공통"]'::jsonb)
 on conflict (key) do nothing;

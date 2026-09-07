@@ -13,7 +13,7 @@
 (function (global) {
   'use strict';
 
-  var TEAMS = ['광역버스사업팀', '택시지원팀', '리페어팀', '수도권버스지원팀', 'AFC지원파트', '실공통'];
+  var TEAMS = ['광역교통지원팀', '택시지원팀', '리페어팀', '수도권버스지원팀', 'AFC지원파트', '실공통'];
 
   /* 저장하는 리프 항목만 나열한다 */
   var SEC_ITEMS = {
@@ -27,6 +27,7 @@
   /* 이동계획 원본의 팀 블록 표기 (엑셀은 아직 "Repair팀" 이다) */
   var TEAM_ALIAS = {
     'Repair팀': '리페어팀', 'Repair 팀': '리페어팀', 'repair팀': '리페어팀',
+    '광역버스사업팀': '광역교통지원팀',
     '고객지원사업부': '사업부합계',      /* 계산값이므로 버린다 */
     '사업부': '실공통'
   };
@@ -251,9 +252,21 @@
     return { keys: keys, dist: dist };
   }
 
-  var REV_GROUPS = ['리페어팀', 'AFC지원파트', '광역버스사업팀', '수도권버스지원팀', '택시지원팀'];
+  var REV_GROUPS = ['리페어팀', 'AFC지원파트', 'AFC지원센터', '광역교통지원팀', '광역버스사업팀',
+                    '대전센터', '수도권버스지원팀', '강남센터', '강북센터', '강서센터', '자재센터',
+                    '택시지원팀', '택시지원파트', '고객지원사업부', '고객지원실'];
 
-  function parseRevBook(wb) {
+  /**
+   * 사업부 안의 영업그룹인지 가른다.
+   * 조직 매핑(mp_org_map)이 있으면 그것을 쓴다 — 조직명이 바뀌어도 매핑만 고치면 된다.
+   * 매핑을 못 받았을 때만 위 목록으로 물러난다.
+   */
+  function inScope(team, orgMap) {
+    if (orgMap && Object.keys(orgMap).length) return !!orgMap[team];
+    return REV_GROUPS.indexOf(team) >= 0;
+  }
+
+  function parseRevBook(wb, orgMap) {
     var f = pickSheet(wb, ['원화금액', '영업그룹'], ['매출일자', '일자']);
     if (!f) throw new Error('필수 열(원화금액 · 영업그룹)을 찾지 못했습니다.');
     var c = f.h.cols;
@@ -274,7 +287,7 @@
       var team = txt(r[iTeam]);
       if (!team || team.indexOf('요약') >= 0 || team.indexOf('총합계') >= 0) return;
       src.cnt++; src.amt += amt;
-      if (REV_GROUPS.indexOf(team) < 0) {
+      if (!inScope(team, orgMap)) {
         excl.cnt++; excl.amt += amt;
         excl.groups[team] = (excl.groups[team] || 0) + 1;
         return;

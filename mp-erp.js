@@ -1319,7 +1319,7 @@
       .then(function () { return fr ? MpImport.readFile(fr) : null; })
       .then(function (wb) {
         if (wb) {
-          UP.rev = MpImport.parseRevBook(wb);
+          UP.rev = MpImport.parseRevBook(wb, D.S.orgMap);
           upLog('매출현황 — 시트 <b>' + esc(UP.rev.sheet) + '</b> · <b>' + UP.rev.rows.length + '</b>건 · 기준 ' +
             esc(UP.rev.ymKeys.join(', ')));
           if (UP.rev.excl.cnt) {

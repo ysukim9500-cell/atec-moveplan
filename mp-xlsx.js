@@ -30,6 +30,7 @@
   };
   /* 엑셀 원본은 아직 옛 팀명을 쓴다. 붙여 넣을 곳이 그쪽이므로 그쪽 표기로 내보낸다. */
   var XLS_TEAM = { '리페어팀': 'Repair팀', '실공통': '사업부' };
+  /* 광역교통지원팀은 원본 엑셀도 이 이름으로 통일한다 (옛 표기 : 광역버스사업팀) */
   function xteam(t) { return XLS_TEAM[t] || t; }
   function lbl(x) { return LBL[x] || x; }
 

@@ -8,7 +8,12 @@
 (function (global) {
   'use strict';
 
-  var TEAMS = ['광역버스사업팀', '택시지원팀', '리페어팀', '수도권버스지원팀', 'AFC지원파트', '실공통'];
+  var TEAMS = ['광역교통지원팀', '택시지원팀', '리페어팀', '수도권버스지원팀', 'AFC지원파트', '실공통'];
+
+  /* 한 조직을 두 이름으로 부르던 흔적. 읽을 때 대표 표기로 모으고, 쓸 때는 대표 표기만 쓴다.
+     옛 이름이 남은 행이 하나라도 있으면 그 팀 값이 둘로 갈라져 어느 쪽도 맞지 않는다. */
+  var TEAM_IN = { '광역버스사업팀': '광역교통지원팀' };
+  function teamIn(t) { return TEAM_IN[t] || t; }
   var TOTAL = '사업부합계';                       /* 계산값 — 저장하지 않는다 */
   var TEAM_LABEL = { '실공통': '고객지원사업부', '사업부합계': '사업부 합계' };
 
@@ -30,10 +35,9 @@
 
   /* ERP 보고조직(6) → 이동계획 팀 */
   var ORG2TEAM = {
-    'AFC지원파트': 'AFC지원파트', '광역교통지원팀': '광역버스사업팀', '리페어팀': '리페어팀',
+    'AFC지원파트': 'AFC지원파트', '광역교통지원팀': '광역교통지원팀', '리페어팀': '리페어팀',
     '수도권버스지원팀': '수도권버스지원팀', '택시지원파트': '택시지원팀', '고객지원사업부': '실공통'
   };
-  /* ERP 매출의 영업그룹은 이미 이동계획 팀명과 같다 */
 
   var S = {
     year: null, periods: {}, plan: {}, week: {}, detail: [], notes: [],
@@ -115,15 +119,15 @@
       S.periods = {}; r[0].forEach(function (p) { S.periods[p.m] = p; });
       /* NULL 은 «값 없음»이다. Number(null) 은 0 이라 그대로 쓰면 빈 칸이 0 이 되고,
          그 주차가 기입된 것으로 잡혀 최종 OL 이 엉뚱한 주차로 간다. */
-      S.plan = {}; r[1].forEach(function (x) { if (x.val != null) S.plan[key(x.m, x.team, x.sec, x.item)] = Number(x.val); });
-      S.week = {}; r[2].forEach(function (x) { if (x.val != null) S.week[key(x.m, x.team, x.sec, x.item, x.k)] = Number(x.val); });
-      S.detail = r[3];
-      S.notes = r[4];
+      S.plan = {}; r[1].forEach(function (x) { if (x.val != null) S.plan[key(x.m, teamIn(x.team), x.sec, x.item)] = Number(x.val); });
+      S.week = {}; r[2].forEach(function (x) { if (x.val != null) S.week[key(x.m, teamIn(x.team), x.sec, x.item, x.k)] = Number(x.val); });
+      S.detail = r[3]; S.detail.forEach(function (d) { d.team = teamIn(d.team); });
+      S.notes = r[4]; S.notes.forEach(function (x) { x.team = teamIn(x.team); });
       S.erpMeta = {}; r[5].forEach(function (x) { S.erpMeta[x.m] = x; });
       S.orgMap = {}; r[6].forEach(function (x) { S.orgMap[x.org] = x.org6; });
       S.acctMap = {}; (r[7] || []).forEach(function (x) { S.acctMap[x.acct] = x.cat; });
       S.config = {}; r[8].forEach(function (x) { S.config[x.key] = x.val; });
-      S.submit = {}; (r[9] || []).forEach(function (x) { S.submit[key(x.m, x.team, x.k)] = x; });
+      S.submit = {}; (r[9] || []).forEach(function (x) { x.team = teamIn(x.team); S.submit[key(x.m, x.team, x.k)] = x; });
       if (S.submitReady !== false) S.submitReady = true;
       return S;
     });
@@ -149,7 +153,8 @@
     TEAMS.forEach(function (t) { out.byTeam[t] = { rev: 0, cost: 0, sga: 0 }; });
 
     S.erpRev[m].forEach(function (r) {
-      var t = ORG2TEAM[r.team] || r.team;
+      var org6 = S.orgMap[r.team] || r.team;
+      var t = ORG2TEAM[org6] || org6;
       var a = Number(r.amt) / 1e6, c = Number(r.cost || 0) / 1e6;
       out.rev += a; out.cost += c;
       if (out.byTeam[t]) { out.byTeam[t].rev += a; out.byTeam[t].cost += c; }
@@ -418,7 +423,7 @@
       return r[0].map(function (p) {
         var mm = by[p.id];
         return { id: p.id, email: p.email, name: p.name || p.email, status: p.status,
-                 team: mm ? mm.team : null, mpRole: mm ? mm.mp_role : null };
+                 team: mm ? teamIn(mm.team) : null, mpRole: mm ? mm.mp_role : null };
       });
     });
   }
@@ -469,7 +474,7 @@
   }
 
   global.MpData = {
-    TEAMS: TEAMS, TOTAL: TOTAL, TEAM_LABEL: TEAM_LABEL,
+    TEAMS: TEAMS, TOTAL: TOTAL, TEAM_LABEL: TEAM_LABEL, teamIn: teamIn,
     setPlan: setPlan, setWeek: setWeek,
     findNote: findNote, setNote: setNote,
     addDetail: addDetail, patchDetail: patchDetail, delDetail: delDetail,
