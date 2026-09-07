@@ -111,6 +111,7 @@
     }
 
     $('#plTitle').textContent = D.teamName(team) + ' · ' + D.yOf(m) + '년 ' + D.moOf(m) + '월 이동계획';
+    renderBoard();
     renderSubmit();
     buildTable(m, team, nW);
     bind();
@@ -559,6 +560,49 @@
       return { label: '다시 제출', on: mine, cls: 'red', changed: true, sub: sub };
     }
     return { label: '제출 취소', on: mine, cls: 'dark', done: true, sub: sub };
+  }
+
+
+  /* ==========================================================================
+   * 팀별 작성현황 — 지금 보고 있는 월 · 주차 기준
+   *
+   * 값이 들어찼다고 완료로 보지 않는다. 각 팀이 «작성 완료» 를 눌러 남긴
+   * mp_submit 행만 완료다. 숫자가 있다는 것과 다 썼다는 것은 다른 말이다.
+   * 제출 뒤에 값이 바뀐 팀은 따로 세운다 — 완료도 미완료도 아니다.
+   * ======================================================================== */
+  function renderBoard() {
+    var box = $('#plBoard');
+    if (D.S.submitReady === false) { box.className = 'board hide'; return; }
+    var m = S.m, k = S.week;
+    box.className = 'board';
+
+    var rows = D.TEAMS.map(function (t) {
+      var sub = D.submitOf(m, t, k);
+      var stale = !!(sub && sub.sig && sub.sig !== weekSig(m, t, k));
+      return { team: t, sub: sub, stale: stale, on: t === S.team };
+    });
+    var done = rows.filter(function (r) { return r.sub && !r.stale; }).length;
+    var chg = rows.filter(function (r) { return r.stale; }).length;
+
+    var h = '<div class="bd-h"><b>' + D.moOf(m) + '월 ' + (k + 1) + '주차 작성현황</b>' +
+      '<span class="bd-cnt ' + (done === rows.length ? 'all' : '') + '">완료 ' + done + '/' + rows.length + '팀</span>' +
+      (chg ? '<span class="bd-cnt chg">제출 후 변경 ' + chg + '팀</span>' : '') + '</div><div class="bd-l">';
+
+    rows.forEach(function (r) {
+      var cls, mark, ttl;
+      if (r.stale) { cls = 'chg'; mark = '!'; ttl = '제출 뒤에 값이 바뀌었습니다 · ' + U.ymdhm(r.sub.submitted_at); }
+      else if (r.sub) { cls = 'ok'; mark = '✓'; ttl = U.ymdhm(r.sub.submitted_at) + (r.sub.email ? ' · ' + r.sub.email : ''); }
+      else { cls = 'no'; mark = ''; ttl = '아직 제출하지 않았습니다'; }
+      h += '<button class="bd-t ' + cls + (r.on ? ' on' : '') + '" data-t="' + esc(r.team) + '" title="' + esc(ttl) + '">' +
+        '<i class="bd-d">' + mark + '</i>' + esc(D.teamName(r.team)) +
+        '<span class="bd-s">' + (r.stale ? '재제출 필요' : (r.sub ? '완료' : '미완료')) + '</span></button>';
+    });
+    box.innerHTML = h + '</div>';
+
+    /* 미완료 팀을 눌러 바로 그 팀으로 넘어간다 — 확인하고 나서 찾아 들어가는 수고를 던다 */
+    $$('#plBoard button.bd-t').forEach(function (b) {
+      b.onclick = function () { S.team = this.dataset.t; render(); };
+    });
   }
 
   function renderSubmit() {
