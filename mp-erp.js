@@ -419,7 +419,8 @@
   function kpi(label, val, rows, cls, signOf) {
     var unit = (String(val).indexOf('%') >= 0 || val === '–') ? '' :
                '<small>' + (S.unit === 'M' ? '백만원' : '전체금액') + '</small>';
-    var tag = (cls === 'quiet' || cls === 'diff') ? '' : ' <span class="tag act">확정</span>';
+    /* «확정» 은 ERP 원본 값에만 붙인다. 전월·증감 카드는 계산해서 나온 값이다. */
+    var tag = (cls && /quiet|diff/.test(cls)) ? '' : ' <span class="tag act">확정</span>';
     return '<div class="card kpi ' + (cls || '') + '">' +
       '<div class="lb">' + esc(label) + tag + '</div>' +
       '<div class="vl ' + (signOf === undefined ? '' : 'delta ' + dcls(signOf)) + '">' + val + unit + '</div>' +
