@@ -207,7 +207,7 @@
       /* 당월이 없으면 전월 비교를 말할 자리가 아니다 */
       pv.className = 'chip hide'; pv.innerHTML = '';
       /* 숨기기만 하면 옛 달 표가 그대로 남는다. 비워 둔다. */
-      ['#erpKpi', '#erpKpi2', '#sgaValid', '#tblErpRecon', '#tblErpTeam', '#tblSgaTeam', '#sgaDetail',
+      ['#erpKpi', '#sgaValid', '#tblErpRecon', '#tblErpTeam', '#tblSgaTeam', '#sgaDetail',
        '#tblSgaCat', '#chSga', '#tblRevTeam', '#tblSgaMatch', '#tblErpNote'].forEach(function (sel) {
         var e = $(sel); if (e) e.innerHTML = '';
       });
@@ -401,9 +401,6 @@
     /* 두 구분이 같은 이야기를 같은 순서로 한다 — 주인공 → 비교 기준 → 변화.
        판관비는 «당월 판관비», 매출은 «당월 매출» 이 주인공일 뿐 배치는 같다. */
     $('#erpKpi').innerHTML = (S.kind === 'sga') ? sgaKpi(a, o, pa, prevM) : revKpi(a, o, pa, prevM);
-    var k2 = $('#erpKpi2');
-    k2.classList.toggle('hide', S.kind !== 'rev');
-    k2.innerHTML = (S.kind === 'rev') ? revKpi2(a, o, pa) : '';
   }
 
   function sgaKpi(a, o, pa, prevM) {
@@ -419,10 +416,10 @@
   }
 
   /**
-   * 매출 KPI 윗줄 — 판관비와 같은 배치.
+   * 매출 KPI — 판관비와 같은 배치.
    *   hero  당월 매출   quiet 전월 매출   diff 전월 대비 증감액 · 증감률
-   * 원가 · 이익 · 마진율은 아랫줄(revKpi2)로 내린다. 넷을 같은 무게로 늘어놓으면
-   * 이 화면이 무엇을 보는 화면인지 사라진다.
+   * 원가 · 이익 · 마진율은 카드로 두지 않는다. 바로 아래 «사업부 손익 대사» 에
+   * 월간계획 · 최종 OL · 확정 · 차이 · 달성률까지 한 줄로 다 있다.
    */
   function revKpi(a, o, pa, prevM) {
     var rC = a.rev, rP = pa ? pa.rev : null, rO = o.rev;
@@ -436,28 +433,6 @@
           [['OL 달성률', rO ? pctS(rC / rO) : '–', null]], 'big diff', dP);
   }
 
-  /** 매출 KPI 아랫줄 — 원가 · 이익 · 마진율. 각각 전월과 최종 OL 을 함께 본다. */
-  function revKpi2(a, o, pa) {
-    var mgC = a.rev ? (a.rev - a.cost) / a.rev : null;
-    var mgP = (pa && pa.rev) ? (pa.rev - pa.cost) / pa.rev : null;
-    var mgO = o.rev ? ((o.rev - o.cost) / o.rev) : null;
-    var row = function (lb, c, pv, ov, isPct, note) {
-      var f = isPct ? function (v) { return v == null ? '–' : pct(v); } : uf;
-      var sf = isPct ? function (v) { return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v * 100).toFixed(1) + '%p'; } : us;
-      var dP = (pv == null || c == null) ? null : c - pv;
-      var dO = (ov == null || c == null) ? null : c - ov;
-      return kpi(lb, f(c), [
-        ['전월', pv == null ? '–' : f(pv), dP == null ? null : (isPct ? dP * 100 : dP), dP == null ? null : sf(dP)],
-        ['최종 OL', ov == null ? '–' : f(ov), dO == null ? null : (isPct ? dO * 100 : dO), dO == null ? null : sf(dO)]
-      ], '', undefined, note);
-    };
-    return row('원가', a.cost, pa ? pa.cost : null, o.cost) +
-           row('이익', a.rev - a.cost, pa ? (pa.rev - pa.cost) : null,
-               (o.rev == null || o.cost == null) ? null : (o.rev - o.cost), false,
-               '매출 − 원가 (개발비 제외)') +
-           row('마진율', mgC, mgP, mgO, true);
-  }
-
   /**
    * KPI 카드 (v20 마크업).
    *   hero  당월 판관비 — 이 화면의 주인공이라 배경째 채운다
@@ -465,7 +440,7 @@
    *   diff  증감 — 파란 배경으로 «달라진 값» 임을 표시한다
    * olrow 는 최종 OL 줄. 점선으로 나눠 «계획 대비» 임을 눈으로 가른다.
    */
-  function kpi(label, val, rows, cls, signOf, note) {
+  function kpi(label, val, rows, cls, signOf) {
     var unit = (String(val).indexOf('%') >= 0 || val === '–') ? '' :
                '<small>' + (S.unit === 'M' ? '백만원' : '전체금액') + '</small>';
     /* «확정» 은 ERP 원본 값에만 붙인다. 전월·증감 카드는 계산해서 나온 값이다. */
@@ -479,8 +454,7 @@
           '<span>' + esc(r[0]) + '</span><b class="num">' + r[1] +
           (txt ? ' <i class="delta ' + (r[2] == null ? '' : dcls(r[2])) + '">' + txt + '</i>' : '') +
           '</b></div>';
-      }).join('') +
-      (note ? '<div class="hint" style="margin-top:6px">' + esc(note) + '</div>' : '') + '</div>';
+      }).join('') + '</div>';
   }
 
   /* ==========================================================================
