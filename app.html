@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ATEC 이동계획</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20260914d">
+<link rel="stylesheet" href="styles.css?v=20260914e">
 </head>
 <body>
 
@@ -299,10 +299,11 @@
           <!-- 매출 명세 -->
           <div id="erpRev" class="hide">
             <div class="sec-title"><h2>매출 명세</h2><span id="revNote"></span></div>
-            <div class="card"><div class="hd"><div><h3>영업그룹별 · 프로젝트별</h3>
-              <div class="desc">행을 누르면 프로젝트가 펼쳐집니다.</div></div></div>
+            <div class="card"><div class="hd"><div><h3>영업그룹별 비교 및 변동 프로젝트</h3>
+              <div class="desc">팀 합계 행에서 전월 · 최종 OL 과 비교하고, 그 아래에서 프로젝트별 실제 변동을
+                확인합니다. 프로젝트 단위에는 대응하는 OL 금액이 없어 확정치만 표시합니다.</div></div></div>
               <div class="bd" style="padding:0">
-                <div class="tbl-wrap" style="max-height:none"><table class="t acc" id="tblRevTeam"></table></div>
+                <div class="tbl-wrap sticky" style="max-height:none"><table class="t" id="tblRevTeam"></table></div>
               </div></div>
           </div>
 
@@ -383,18 +384,18 @@
   </div>
 </div>
 
-<script src="mp-auth.js?v=20260914d"></script>
-<script src="mp-data.js?v=20260914d"></script>
-<script src="mp-calc.js?v=20260914d"></script>
-<script src="mp-ui.js?v=20260914d"></script>
-<script src="mp-xlsx.js?v=20260914d"></script>
-<script src="mp-plan.js?v=20260914d"></script>
-<script src="mp-week.js?v=20260914d"></script>
-<script src="mp-admin.js?v=20260914d"></script>
-<script src="mp-import.js?v=20260914d"></script>
-<script src="mp-sga.js?v=20260914d"></script>
-<script src="mp-erp.js?v=20260914d"></script>
-<script src="mp-report.js?v=20260914d"></script>
+<script src="mp-auth.js?v=20260914e"></script>
+<script src="mp-data.js?v=20260914e"></script>
+<script src="mp-calc.js?v=20260914e"></script>
+<script src="mp-ui.js?v=20260914e"></script>
+<script src="mp-xlsx.js?v=20260914e"></script>
+<script src="mp-plan.js?v=20260914e"></script>
+<script src="mp-week.js?v=20260914e"></script>
+<script src="mp-admin.js?v=20260914e"></script>
+<script src="mp-import.js?v=20260914e"></script>
+<script src="mp-sga.js?v=20260914e"></script>
+<script src="mp-erp.js?v=20260914e"></script>
+<script src="mp-report.js?v=20260914e"></script>
 <script>
 (function () {
   'use strict';

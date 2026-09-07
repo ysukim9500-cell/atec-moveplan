@@ -791,3 +791,55 @@ details.acc .dbody{border-top:1px solid var(--rule2);background:#FCFDFD}
   details.acc>summary{grid-template-columns:96px 72px 78px 84px 84px 1fr;gap:8px}
   .tblock-hd .tb-name{min-width:120px}
 }
+
+/* ============================================================
+   출처별 열 색 — 계획(최종 OL)은 노랑, 확정은 분홍, 전월은 회색.
+   숫자만 보고 «이 값이 어디서 왔는지» 를 되짚지 않게 한다.
+   ============================================================ */
+th.olcol{background:var(--amber-bg)!important;color:var(--amber)}
+td.olcol{background:#FFFDF7;color:var(--ink2);font-weight:400}
+tr.grand td.curcol,tr.grand td.olcol{background:transparent}
+th.bl,td.bl{border-left:1px solid var(--g2)}
+th.grphead{background:#E9ECEE!important;color:var(--ink2);text-align:center;font-weight:700}
+
+/* 비목별 증감 — 0 을 축으로 좌우로 뻗는 SVG 막대 */
+svg.zbar{display:block;width:100%}
+svg.zbar .ax{fill:var(--muted);font-size:11px;font-family:var(--num)}
+svg.zbar .vlab{fill:var(--ink2);font-size:11px;font-weight:700;font-family:var(--num)}
+
+#tblSgaCat{table-layout:fixed;width:100%;min-width:760px}
+#tblSgaCat td.sec{font-weight:700}
+#tblSgaCat td.prevcol,#tblSgaCat td.olcol{font-size:12.5px;color:var(--muted);font-weight:400}
+#tblSgaCat td.curcol{font-size:13.5px}
+#p-erp.won #tblSgaCat{min-width:1080px}
+
+/* 차이 원인 · 검토 의견 */
+#tblErpNote{table-layout:fixed;width:100%;min-width:860px}
+#tblErpNote td.sec{font-weight:700}
+
+/* ============================================================
+   매출 명세 — 영업그룹 합계 행 + 프로젝트 행
+   ============================================================ */
+#tblRevTeam{table-layout:fixed;width:100%;min-width:1060px}
+#tblRevTeam col.projname{width:238px}
+#tblRevTeam td.projname{max-width:238px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tblRevTeam td,#tblRevTeam th{overflow:hidden;text-overflow:ellipsis}
+#tblRevTeam td.n{font-variant-numeric:tabular-nums;letter-spacing:-.2px}
+#tblRevTeam td.curcol{font-size:13px}
+#tblRevTeam tr.teamsum td.curcol{font-size:13.5px;font-weight:700}
+#tblRevTeam td.prevcol,#tblRevTeam td.olcol{font-size:12px}
+#p-erp.won #tblRevTeam{min-width:1260px}
+
+tr.teamsum td{background:#F1F4F6;font-weight:700;border-top:1px solid var(--g2)}
+tr.teamsum td.curcol{background:#FBE3EE}
+tr.teamsum td.olcol{background:#FBF4E4}
+tr.projrow td{font-weight:400}
+tr.projrow.gone td{color:var(--faint)}
+td.b{font-weight:700}
+
+.tbl-wrap.sticky th.stick,.tbl-wrap.sticky td.stick{position:sticky;z-index:3;background:var(--paper)}
+.tbl-wrap.sticky th.stick{z-index:5}
+.tbl-wrap.sticky .s1{left:0;min-width:80px}
+.tbl-wrap.sticky td.sec.stick{background:var(--soft)}
+.tbl-wrap.sticky tr.teamsum td.stick{background:#F1F4F6}
+.tbl-wrap.sticky tr.grand td.stick{background:#E9ECEE}

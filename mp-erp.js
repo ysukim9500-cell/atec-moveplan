@@ -393,7 +393,7 @@
     var mgC = a.rev ? (a.rev - a.cost) / a.rev : null;
     var mgP = (pa && pa.rev) ? (pa.rev - pa.cost) / pa.rev : null;
     var mgO = o.rev ? ((o.rev - o.cost) / o.rev) : null;
-    var row = function (lb, c, pv, ov, isPct) {
+    var row = function (lb, c, pv, ov, isPct, note) {
       var f = isPct ? function (v) { return v == null ? '–' : pct(v); } : uf;
       var sf = isPct ? function (v) { return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v * 100).toFixed(1) + '%p'; } : us;
       var dP = (pv == null || c == null) ? null : c - pv;
@@ -401,12 +401,13 @@
       return kpi(lb, f(c), [
         ['전월', pv == null ? '–' : f(pv), dP == null ? null : (isPct ? dP * 100 : dP), dP == null ? null : sf(dP)],
         ['최종 OL', ov == null ? '–' : f(ov), dO == null ? null : (isPct ? dO * 100 : dO), dO == null ? null : sf(dO)]
-      ]);
+      ], '', undefined, note);
     };
     return row('매출', a.rev, pa ? pa.rev : null, o.rev) +
            row('원가', a.cost, pa ? pa.cost : null, o.cost) +
            row('이익', a.rev - a.cost, pa ? (pa.rev - pa.cost) : null,
-               (o.rev == null || o.cost == null) ? null : (o.rev - o.cost)) +
+               (o.rev == null || o.cost == null) ? null : (o.rev - o.cost), false,
+               '매출 − 원가 (개발비 제외)') +
            row('마진율', mgC, mgP, mgO, true);
   }
 
@@ -417,7 +418,7 @@
    *   diff  증감 — 파란 배경으로 «달라진 값» 임을 표시한다
    * olrow 는 최종 OL 줄. 점선으로 나눠 «계획 대비» 임을 눈으로 가른다.
    */
-  function kpi(label, val, rows, cls, signOf) {
+  function kpi(label, val, rows, cls, signOf, note) {
     var unit = (String(val).indexOf('%') >= 0 || val === '–') ? '' :
                '<small>' + (S.unit === 'M' ? '백만원' : '전체금액') + '</small>';
     /* «확정» 은 ERP 원본 값에만 붙인다. 전월·증감 카드는 계산해서 나온 값이다. */
@@ -431,7 +432,8 @@
           '<span>' + esc(r[0]) + '</span><b class="num">' + r[1] +
           (txt ? ' <i class="delta ' + (r[2] == null ? '' : dcls(r[2])) + '">' + txt + '</i>' : '') +
           '</b></div>';
-      }).join('') + '</div>';
+      }).join('') +
+      (note ? '<div class="hint" style="margin-top:6px">' + esc(note) + '</div>' : '') + '</div>';
   }
 
   /* ==========================================================================
@@ -968,62 +970,82 @@
     });
 
     /* 전월이 있으면 증감액을, 없으면 당월 확정 금액을 그린다.
-       v20 과 같다 — 비교할 게 없다고 빈 칸을 두면 그 달은 아무것도 못 본다. */
-    var vOf = function (c) {
-      return hasPrev ? ((cSum[c] || 0) - (pSum[c] || 0)) : (cSum[c] || 0);
-    };
-    var maxAbs = 0;
-    cats.forEach(function (c) { maxAbs = Math.max(maxAbs, Math.abs(vOf(c))); });
-    var bh = '';
-    cats.forEach(function (c) {
-      var v = vOf(c);
+       비교할 게 없다고 빈 칸을 두면 그 달은 아무것도 못 본다 — v20 과 같다. */
+    var rows = cats.map(function (c) {
+      var cc = (cSum[c] || 0) / 1e6, pp = hasPrev ? (pSum[c] || 0) / 1e6 : null;
       var o = D.ITEMS['판관비'].indexOf(c) >= 0 ? K.OL(m, D.TOTAL, '판관비', c) : null;
-      var tip = '당월 확정 ' + uf((cSum[c] || 0) / 1e6) +
-        (hasPrev ? ' · 전월 ' + uf((pSum[c] || 0) / 1e6) : '') +
-        ' · 최종 OL ' + uf(o);
-      bh += '<div class="dvrow" title="' + esc(tip) + '"><div class="dvnm">' + esc(c) + '</div>' +
-        '<div class="dvbar">' + rateBar(maxAbs ? v / maxAbs : 0, 1) + '</div>' +
-        '<div class="dvv ' + dcls(v / 1e6) + '">' + (hasPrev ? us(v / 1e6) : uf(v / 1e6)) + '</div></div>';
+      return { name: c, v: hasPrev ? (cc - pp) : cc,
+               tip: '당월 확정 ' + uf(cc) + (hasPrev ? ' · 전월 ' + uf(pp) : '') + ' · 최종 OL ' + uf(o) };
     });
-    $('#chSga').innerHTML = bh || '<div class="note info" style="margin:0">당월 판관비 명세가 없습니다.</div>';
+    zeroBars($('#chSga'), rows);
     $('#sgaBarNote').textContent = (hasPrev ? '전월 대비 증감액' : '당월 확정 금액') +
       ' · 빨강 증가 / 파랑 감소 · 가장 큰 절대값을 100%로 본 상대 길이';
 
-    /* 비목별 비교 — v20 과 같은 열 : 전월 · 최종 OL · 당월 확정 · 전월 대비 · OL 대비 */
-    var ch = '<thead><tr><th>비목</th>' +
-      '<th class="n prevcol" style="width:100px">' + (hasPrev ? D.moOf(m - 1) + '월' : '전월') + '</th>' +
-      '<th class="n" style="width:100px">최종 OL</th>' +
-      '<th class="n curcol" style="width:106px">' + D.moOf(m) + '월 확정</th>' +
-      '<th class="n" style="width:100px">전월 대비</th>' +
-      '<th class="n" style="width:100px">OL 대비</th></tr></thead><tbody>';
+    /* 비목별 비교 — v20 열 : 전월 · 최종 OL · 당월 확정 · 전월 대비 · OL 대비.
+       계획(최종 OL)에서 온 열은 노란 계열, 확정에서 온 열은 분홍 계열로 출처를 나눈다. */
+    var ch = '<colgroup><col style="width:15%"><col style="width:17%"><col style="width:17%">' +
+      '<col style="width:17%"><col style="width:17%"><col style="width:17%"></colgroup>' +
+      '<thead><tr><th>비목</th>' +
+      '<th class="n prevcol">' + (hasPrev ? '전월' : '전월') + '</th>' +
+      '<th class="n olcol">최종 OL</th>' +
+      '<th class="n curcol">당월 확정</th>' +
+      '<th class="n bl">전월 대비</th>' +
+      '<th class="n olcol">OL 대비</th></tr></thead><tbody>';
     var so = 0, sc = 0, sp = 0, hasOl = false;
     cats.forEach(function (cat) {
-      var cc = cSum[cat] || 0, pp = hasPrev ? (pSum[cat] || 0) : null;
+      var cc = (cSum[cat] || 0) / 1e6, pp = hasPrev ? (pSum[cat] || 0) / 1e6 : null;
       var known = D.ITEMS['판관비'].indexOf(cat) >= 0;
       var o = known ? K.OL(m, D.TOTAL, '판관비', cat) : null;
       if (o != null) { so += o; hasOl = true; }
       sc += cc; if (pp != null) sp += pp;
-      var dP = (pp == null) ? null : (cc - pp) / 1e6;
-      var dO = (o == null) ? null : cc / 1e6 - o;
+      var dP = (pp == null) ? null : cc - pp;
+      var dO = (o == null) ? null : cc - o;
       ch += '<tr><td class="sec">' + esc(cat) +
         (known ? '' : ' <span class="bdg">미분류</span>') + '</td>' +
-        '<td class="n prevcol">' + (hasPrev ? uf(pp / 1e6) : '–') + '</td>' +
-        '<td class="n">' + uf(o) + '</td>' +
-        '<td class="n curcol"><b>' + uf(cc / 1e6) + '</b></td>' +
-        '<td class="n delta ' + (dP == null ? 'flat' : dcls(dP)) + '">' + (dP == null ? '–' : us(dP)) + '</td>' +
-        '<td class="n delta ' + (dO == null ? 'flat' : dcls(dO)) + '">' + (dO == null ? '–' : us(dO)) + '</td></tr>';
+        '<td class="n prevcol">' + (hasPrev ? uf(pp) : '–') + '</td>' +
+        '<td class="n olcol">' + uf(o) + '</td>' +
+        '<td class="n curcol"><b>' + uf(cc) + '</b></td>' +
+        '<td class="n bl delta ' + (dP == null ? 'flat' : dcls(dP)) + '">' + (dP == null ? '–' : us(dP)) + '</td>' +
+        '<td class="n olcol delta ' + (dO == null ? 'flat' : dcls(dO)) + '">' + (dO == null ? '–' : us(dO)) + '</td></tr>';
     });
     var olT = K.OL(m, D.TOTAL, '판관비', '합계');
     if (olT == null && hasOl) olT = so;
     ch += '<tr class="grand"><td>합 계</td>' +
-      '<td class="n prevcol">' + (hasPrev ? uf(sp / 1e6) : '–') + '</td>' +
+      '<td class="n prevcol">' + (hasPrev ? uf(sp) : '–') + '</td>' +
       '<td class="n">' + uf(olT) + '</td>' +
-      '<td class="n curcol"><b>' + uf(sc / 1e6) + '</b></td>' +
-      '<td class="n delta ' + (hasPrev ? dcls((sc - sp) / 1e6) : 'flat') + '">' +
-        (hasPrev ? us((sc - sp) / 1e6) : '–') + '</td>' +
-      '<td class="n delta ' + dcls(olT == null ? null : sc / 1e6 - olT) + '">' +
-        us(olT == null ? null : sc / 1e6 - olT) + '</td></tr>';
+      '<td class="n"><b>' + uf(sc) + '</b></td>' +
+      '<td class="n bl delta ' + (hasPrev ? dcls(sc - sp) : 'flat') + '">' +
+        (hasPrev ? us(sc - sp) : '–') + '</td>' +
+      '<td class="n delta ' + dcls(olT == null ? null : sc - olT) + '">' +
+        us(olT == null ? null : sc - olT) + '</td></tr>';
     $('#tblSgaCat').innerHTML = ch + '</tbody>';
+  }
+
+  /**
+   * 0 을 가운데 축으로 두고 좌우로 뻗는 가로 막대 (v20 divBars).
+   * 이름은 왼쪽에, 값은 막대 끝에 붙인다 — 값이 고정 열에 있으면 막대 길이와 눈이 따로 논다.
+   * 값 표기는 언제나 백만원 정수다. 여기서 보는 것은 «크기 비교» 이지 금액 조회가 아니다.
+   */
+  function zeroBars(host, rows) {
+    if (!host) return;
+    if (!rows.length) { host.innerHTML = '<div class="note info" style="margin:0">표시할 비목이 없습니다.</div>'; return; }
+    var W = host.clientWidth || 520, rh = 28, H = rows.length * rh + 12, lw = 74;
+    var mx = 1;
+    rows.forEach(function (r) { if (Math.abs(r.v) > mx) mx = Math.abs(r.v); });
+    var half = (W - lw - 44) / 2, cx = lw + half;
+    var g = '<line x1="' + cx + '" x2="' + cx + '" y1="4" y2="' + (H - 8) + '" stroke="#D9DDE0" stroke-width="1"/>';
+    rows.forEach(function (r, i) {
+      var y = i * rh + 8, w = Math.max(half * Math.abs(r.v) / mx, 1), pos = r.v >= 0;
+      var sign = r.v > 0.005 ? '+' : (r.v < -0.005 ? '−' : '');
+      var lab = sign + Math.round(Math.abs(r.v));
+      g += '<text x="0" y="' + (y + 13) + '" class="ax">' + esc(r.name) + '</text>' +
+        '<rect x="' + (pos ? cx : cx - w) + '" y="' + (y + 3) + '" width="' + w.toFixed(1) +
+          '" height="13" rx="3" fill="' + (pos ? '#990033' : '#2461a8') + '"><title>' +
+          esc(r.name + ' — ' + r.tip) + '</title></rect>' +
+        '<text x="' + (pos ? cx + w + 6 : cx - w - 6) + '" y="' + (y + 14) + '" class="vlab" text-anchor="' +
+          (pos ? 'start' : 'end') + '">' + lab + '</text>';
+    });
+    host.innerHTML = '<svg class="zbar" viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '">' + g + '</svg>';
   }
 
   /* ---------- 차이 원인 · 검토 의견 (판관비 · 매출 공통) ----------
@@ -1032,15 +1054,12 @@
   function renderErpNote(m) {
     var ag = D.erpAgg(m);
     if (!ag) { $('#tblErpNote').innerHTML = ''; return; }
-    /* 팀장은 자기 팀만 쓴다 — RLS 가 그렇고, 칸도 그래야 한다 */
-    var W = (S.unit !== 'M');
-    $('#erpNoteDesc').innerHTML = '최종 OL 대비 <b>+</b> 는 계획보다 많이 쓰거나 많이 판 것입니다. ' +
+    $('#erpNoteDesc').innerHTML = '최종 OL 대비 <b>+</b> 는 계획보다 많이 판(쓴) 것입니다. ' +
       '매출 · 원가는 매출현황, 판관비는 판관비 확정본에서 옵니다. ' +
       (MpAuth.viewOnly() ? '<b>화면이 좁아 보기 전용입니다</b> — 사유 입력은 PC 에서 하세요.'
                          : '사유는 칸을 벗어나면 바로 저장됩니다.');
-    var h = '<colgroup><col style="width:170px"><col style="width:' + (W ? 130 : 106) + 'px">' +
-      '<col style="width:' + (W ? 130 : 106) + 'px"><col style="width:' + (W ? 130 : 106) + 'px">' +
-      '<col></colgroup><thead><tr><th>팀</th>' +
+    var h = '<colgroup><col style="width:12%"><col style="width:18%"><col style="width:18%">' +
+      '<col style="width:18%"><col style="width:34%"></colgroup><thead><tr><th>팀</th>' +
       '<th class="n">매출 OL 대비</th><th class="n">원가 OL 대비</th><th class="n">판관비 OL 대비</th>' +
       '<th>차이 원인 · 검토 의견</th></tr></thead><tbody>';
     D.TEAMS.forEach(function (t) {
@@ -1051,13 +1070,14 @@
       var ds = (o.sga == null) ? null : a.sga - o.sga;
       var nt = D.findNote('erpdiff', m, t, null, null, null);
       var body = nt ? nt.body : '';
+      /* 팀장은 자기 팀만 쓴다 — RLS 가 그렇고, 칸도 그래야 한다 */
       var can = MpAuth.canWriteTeam(t) && !MpAuth.viewOnly();
       h += '<tr><td class="sec">' + esc(D.teamName(t)) + '</td>' +
         '<td class="n delta ' + dcls(dr) + '">' + us(dr) + '</td>' +
         '<td class="n delta ' + dcls(dc) + '">' + us(dc) + '</td>' +
         '<td class="n delta ' + dcls(ds) + '">' + us(ds) + '</td>' +
         '<td class="txt">' + (can
-          ? '<textarea rows="1" class="na" data-et="' + esc(t) + '" placeholder="차이 원인을 적어 주세요">' +
+          ? '<textarea rows="1" class="na" data-et="' + esc(t) + '" placeholder="차이 원인을 입력하세요">' +
             esc(body) + '</textarea>'
           : (body ? esc(body) : '<span class="q">' + esc(D.teamName(t)) + ' 담당자만 적을 수 있습니다</span>')) +
         '</td></tr>';
@@ -1076,71 +1096,104 @@
     });
   }
 
-  /* 0 을 가운데 두고 좌우로 뻗는 막대 */
-  function rateBar(rate, max) {
-    /* 비교 대상이 없으면 빈 막대를 그리지 않는다 — 0 처럼 보인다 */
-    if (rate == null || !(max > 0)) return '';
-    var w = Math.min(50, Math.abs(rate) / max * 50);
-    var cls = rate > 0.005 ? 'up' : rate < -0.005 ? 'down' : 'flat';
-    var st = rate >= 0 ? ('left:50%;width:' + w.toFixed(1) + '%') : ('right:50%;width:' + w.toFixed(1) + '%');
-    return '<span class="mbar"><i class="' + cls + '" style="' + st + '"></i></span>';
-  }
-
-
-  /* ---------- 매출 명세 ---------- */
-  function renderRev(m) {
-    var byT = {};
+  /* ==========================================================================
+   * 매출 명세 — v20 «영업그룹별 비교 및 변동 프로젝트»
+   *   팀 합계 행에서만 전월 · 최종 OL 과 비교한다.
+   *   프로젝트 단위에는 대응하는 OL 금액이 아예 없다 — 없는 것을 0 으로 그리지 않는다.
+   *   프로젝트는 신규 → 변동 → 당월 없음 순으로, 그 안에서 변동이 큰 것부터 세운다.
+   * ======================================================================== */
+  function projMap(m) {
+    var o = {};
     (D.S.erpRev[m] || []).forEach(function (r) {
       var t = D.ORG2TEAM[r.team] || r.team;
-      var o = byT[t] || (byT[t] = { rev: 0, cost: 0, proj: {} });
-      var a = Number(r.amt) / 1e6, c = Number(r.cost || 0) / 1e6;
-      o.rev += a; o.cost += c;
-      var pn = r.pname || '(프로젝트명 없음)';
-      var p = o.proj[pn] || (o.proj[pn] = { rev: 0, cost: 0, n: 0 });
-      p.rev += a; p.cost += c; p.n++;
+      var nm = r.pname || '(프로젝트명 없음)';
+      var k = t + '||' + nm;
+      var x = o[k] || (o[k] = { team: t, name: nm, rev: 0, cost: 0, n: 0 });
+      x.rev += Number(r.amt) / 1e6;
+      x.cost += Number(r.cost || 0) / 1e6;
+      x.n++;
+    });
+    return o;
+  }
+
+  function renderRev(m) {
+    var prevM = m - 1, hasPrev = !!D.S.erpMeta[prevM] && !!D.S.erpRev[prevM];
+    var ag = D.erpAgg(m), pg = hasPrev ? D.erpAgg(prevM) : null;
+    var pc = projMap(m), pp = hasPrev ? projMap(prevM) : {};
+
+    var W = (S.unit !== 'M'), mw = W ? 130 : 106;
+    var h = '<colgroup><col style="width:132px"><col class="projname">' +
+      '<col style="width:' + mw + 'px"><col style="width:' + mw + 'px">' +
+      '<col style="width:' + (mw + 14) + 'px"><col style="width:' + mw + 'px">' +
+      '<col style="width:' + mw + 'px"></colgroup>' +
+      '<thead><tr><th rowspan="2" class="stick s1">영업그룹</th><th rowspan="2">프로젝트</th>' +
+      '<th colspan="3" class="c grphead bl">금액 (' + (S.unit === 'M' ? '백만원' : '전체금액') + ')</th>' +
+      '<th colspan="2" class="c grphead bl">증감</th></tr><tr>' +
+      '<th class="n bl prevcol">전월</th><th class="n olcol">최종 OL</th><th class="n curcol">당월 확정</th>' +
+      '<th class="n bl">전월 대비</th><th class="n olcol">OL 대비</th></tr></thead><tbody>';
+
+    var tot = { p: 0, o: 0, c: 0 }, hasOl = false;
+    D.TEAMS.forEach(function (t) {
+      var cRev = ag.byTeam[t] ? ag.byTeam[t].rev : 0;
+      var pRev = (hasPrev && pg && pg.byTeam[t]) ? pg.byTeam[t].rev : null;
+      var oRev = K.OL(m, t, '매출', '합계');
+
+      var names = {};
+      Object.keys(pc).forEach(function (k) { if (pc[k].team === t) names[pc[k].name] = 1; });
+      Object.keys(pp).forEach(function (k) { if (pp[k].team === t) names[pp[k].name] = 1; });
+      var rows = Object.keys(names).map(function (nm) {
+        var c = (pc[t + '||' + nm] || {}).rev || 0, p = (pp[t + '||' + nm] || {}).rev || 0;
+        return { name: nm, c: c, p: p, d: c - p, gone: (c === 0 && p > 0), neu: (p === 0 && c > 0) };
+      }).filter(function (r) { return hasPrev ? (Math.abs(r.d) > 0.0005 || r.c > 0) : r.c > 0; });
+      rows.sort(function (a, b) {
+        var ga = a.gone ? 2 : (a.neu ? 0 : 1), gb = b.gone ? 2 : (b.neu ? 0 : 1);
+        if (ga !== gb) return ga - gb;
+        return Math.abs(b.d || b.c) - Math.abs(a.d || a.c);
+      });
+
+      tot.c += cRev;
+      if (pRev != null) tot.p += pRev;
+      if (oRev != null) { tot.o += oRev; hasOl = true; }
+      var dP = (pRev == null) ? null : cRev - pRev;
+      var dO = (oRev == null) ? null : cRev - oRev;
+      var span = Math.max(1, rows.length) + 1;
+
+      h += '<tr class="teamsum"><td class="sec stick s1" rowspan="' + span + '">' +
+        esc(D.teamName(t)) + '</td><td class="b">팀 합계</td>' +
+        '<td class="n bl prevcol">' + (hasPrev ? uf(pRev) : '–') + '</td>' +
+        '<td class="n olcol">' + uf(oRev) + '</td>' +
+        '<td class="n curcol"><b>' + uf(cRev) + '</b></td>' +
+        '<td class="n bl delta ' + dcls(dP) + '">' + us(dP) + '</td>' +
+        '<td class="n olcol delta ' + dcls(dO) + '">' + us(dO) + '</td></tr>';
+      if (!rows.length) {
+        h += '<tr><td colspan="6" class="zero">해당 영업그룹의 확정 매출이 없습니다.</td></tr>';
+      }
+      rows.forEach(function (r) {
+        h += '<tr class="projrow' + (r.gone ? ' gone' : '') + '">' +
+          '<td class="projname" title="' + esc(r.name) + '">' + esc(r.name) +
+            (r.neu && hasPrev ? ' <span class="bdg new">신규</span>' : '') +
+            (r.gone ? ' <span class="bdg gone">당월 없음</span>' : '') + '</td>' +
+          '<td class="n bl prevcol">' + (hasPrev ? uf(r.p) : '–') + '</td>' +
+          '<td class="n olcol zero">–</td>' +
+          '<td class="n curcol">' + uf(r.c) + '</td>' +
+          '<td class="n bl delta ' + (hasPrev ? dcls(r.d) : 'flat') + '">' + (hasPrev ? us(r.d) : '–') + '</td>' +
+          '<td class="n olcol zero">–</td></tr>';
+      });
     });
 
-    var h = '<thead><tr><th>영업그룹 · 프로젝트</th><th class="n" style="width:56px">건</th>' +
-      '<th class="n" style="width:96px">최종 OL</th><th class="n cur" style="width:104px">확정 매출</th>' +
-      '<th class="n" style="width:96px">차이</th><th class="n" style="width:96px">확정 원가</th>' +
-      '<th class="n" style="width:96px">매출이익</th><th class="n" style="width:70px">이익률</th></tr></thead><tbody>';
-    Object.keys(byT).sort(function (a, b) { return byT[b].rev - byT[a].rev; }).forEach(function (t) {
-      var o = byT[t];
-      var olv = K.OL(m, t, '매출', '합계');
-      var d = olv == null ? null : o.rev - olv;
-      var pk = Object.keys(o.proj), gp = o.rev - o.cost;
-      h += '<tr class="trow" data-t="' + esc(t) + '"><td class="tname"><span class="cv">' +
-        (S.open['r:' + t] ? '▾' : '▸') + '</span><b>' + esc(D.teamName(t)) + '</b></td>' +
-        '<td class="n q">' + pk.length + '</td>' +
-        '<td class="n">' + uf(olv) + '</td><td class="n cur"><b>' + uf(o.rev) + '</b></td>' +
-        '<td class="n ' + dcls(d) + '">' + us(d) + '</td>' +
-        '<td class="n">' + uf(o.cost) + '</td><td class="n">' + uf(gp) + '</td>' +
-        '<td class="n">' + (o.rev ? pct(gp / o.rev) : '–') + '</td></tr>';
-      if (S.open['r:' + t]) {
-        pk.sort(function (a, b) { return o.proj[b].rev - o.proj[a].rev; }).forEach(function (pn) {
-          var p = o.proj[pn], pgp = p.rev - p.cost;
-          h += '<tr class="proj"><td class="txt pn">' + esc(pn) + '</td>' +
-            '<td class="n q">' + p.n + '</td><td class="n"><span class="zero">–</span></td>' +
-            '<td class="n cur">' + uf(p.rev) + '</td><td class="n"><span class="zero">–</span></td>' +
-            '<td class="n">' + uf(p.cost) + '</td><td class="n">' + uf(pgp) + '</td>' +
-            '<td class="n">' + (p.rev ? pct(pgp / p.rev) : '–') + '</td></tr>';
-        });
-      }
-    });
-    var ag = D.erpAgg(m), olT = K.OL(m, D.TOTAL, '매출', '합계');
-    h += '<tr class="grand"><td>합 계</td><td class="n"></td>' +
-      '<td class="n">' + uf(olT) + '</td><td class="n cur"><b>' + uf(ag.rev) + '</b></td>' +
-      '<td class="n ' + dcls(olT == null ? null : ag.rev - olT) + '">' + us(olT == null ? null : ag.rev - olT) + '</td>' +
-      '<td class="n">' + uf(ag.cost) + '</td><td class="n">' + uf(ag.rev - ag.cost) + '</td>' +
-      '<td class="n">' + (ag.rev ? pct((ag.rev - ag.cost) / ag.rev) : '–') + '</td></tr>';
+    var tdP = hasPrev ? (tot.c - tot.p) : null;
+    var tdO = hasOl ? (tot.c - tot.o) : null;
+    h += '<tr class="grand"><td class="stick s1">합 계</td><td class="b">전 영업그룹</td>' +
+      '<td class="n bl">' + (hasPrev ? uf(tot.p) : '–') + '</td>' +
+      '<td class="n">' + (hasOl ? uf(tot.o) : '–') + '</td>' +
+      '<td class="n"><b>' + uf(tot.c) + '</b></td>' +
+      '<td class="n bl delta ' + dcls(tdP) + '">' + us(tdP) + '</td>' +
+      '<td class="n delta ' + dcls(tdO) + '">' + us(tdO) + '</td></tr>';
     $('#tblRevTeam').innerHTML = h + '</tbody>';
 
-    $$('#tblRevTeam tr.trow').forEach(function (tr) {
-      tr.onclick = function () { var t = 'r:' + this.dataset.t; S.open[t] = !S.open[t]; renderRev(m); };
-    });
-    $('#revNote').innerHTML = '프로젝트에는 대응하는 OL 금액이 없어 확정치만 표시합니다. ' +
-      '여기 매출이익에는 <b>개발비가 빠져 있습니다</b> — ERP 에 계상되지 않기 때문입니다. ' +
-      '개발비를 더한 값은 위 대사표에서 보십시오.';
+    $('#revNote').innerHTML = '팀 합계 행에서 전월 · 최종 OL 과 비교하고, 그 아래에서 프로젝트별 실제 변동을 봅니다. ' +
+      '<b>프로젝트 단위에는 대응하는 OL 금액이 없어</b> 확정치만 표시합니다.' +
+      (hasPrev ? '' : ' 전월(' + D.moOf(prevM) + '월) 확정본이 없어 전월 대비는 비어 있습니다.');
   }
 
   /* ==========================================================================
