@@ -235,10 +235,10 @@
     var b = $('#btnWkXlsx');
     b.disabled = true; b.textContent = '준비 중…';
     loadXlsx().then(function () {
-      /* 원본 «이동계획차이.xlsx» 배치를 그대로 따른다 — 받는 쪽이 옮겨 적지 않게 */
-      var wb = MpXlsx.diffBook(summaryRows(S.team));
-      XLSX.writeFile(wb, '이동계획차이_' + U.ymd(null, '').slice(2) + '.xlsx');
-      b.disabled = false; b.textContent = '엑셀 내보내기';
+      /* 원본 «이동계획차이.xlsx» 를 열어 값만 얹는다 — 병합 · 테두리 · 인쇄영역이 그대로 남는다 */
+      return MpXlsx.diffFile(summaryRows(S.team)).then(function () {
+        b.disabled = false; b.textContent = '엑셀 내보내기';
+      });
     }).catch(function (e) {
       b.disabled = false; b.textContent = '엑셀 내보내기';
       flash(e.message, true);

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ATEC 이동계획</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20260914s">
+<link rel="stylesheet" href="styles.css?v=20260914t">
 </head>
 <body>
 
@@ -172,6 +172,7 @@
           <div class="gline"><span class="glabel">대상</span><div class="tabs" id="rpTeam"></div>
             <div class="spacer"></div>
             <button class="btn" id="btnRpXlsx">엑셀 내려받기</button>
+            <button class="btn dark" id="btnRpPlanTpl">이동계획 원본 서식</button>
             <button class="btn red" id="btnRpPrint">인쇄 · PDF</button></div>
         </div>
 
@@ -398,18 +399,20 @@
   </div>
 </div>
 
-<script src="mp-auth.js?v=20260914s"></script>
-<script src="mp-data.js?v=20260914s"></script>
-<script src="mp-calc.js?v=20260914s"></script>
-<script src="mp-ui.js?v=20260914s"></script>
-<script src="mp-xlsx.js?v=20260914s"></script>
-<script src="mp-plan.js?v=20260914s"></script>
-<script src="mp-week.js?v=20260914s"></script>
-<script src="mp-admin.js?v=20260914s"></script>
-<script src="mp-import.js?v=20260914s"></script>
-<script src="mp-sga.js?v=20260914s"></script>
-<script src="mp-erp.js?v=20260914s"></script>
-<script src="mp-report.js?v=20260914s"></script>
+<script src="mp-auth.js?v=20260914t"></script>
+<script src="mp-data.js?v=20260914t"></script>
+<script src="mp-calc.js?v=20260914t"></script>
+<script src="mp-ui.js?v=20260914t"></script>
+<script src="vendor/fflate.js?v=20260914t"></script>
+<script src="mp-tpl.js?v=20260914t"></script>
+<script src="mp-xlsx.js?v=20260914t"></script>
+<script src="mp-plan.js?v=20260914t"></script>
+<script src="mp-week.js?v=20260914t"></script>
+<script src="mp-admin.js?v=20260914t"></script>
+<script src="mp-import.js?v=20260914t"></script>
+<script src="mp-sga.js?v=20260914t"></script>
+<script src="mp-erp.js?v=20260914t"></script>
+<script src="mp-report.js?v=20260914t"></script>
 <script>
 (function () {
   'use strict';

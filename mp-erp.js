@@ -1595,57 +1595,52 @@
       .then(function (ok) { if (ok) fn(); });
   }
 
+  /* ==========================================================================
+   * 가공본 — 원본 서식 파일을 열어 «데이터 시트만» 갈아끼운다.
+   *
+   * 새 워크북을 만들면 피벗 · 숨김시트 · 인쇄영역 · 표시형식이 하나도 따라오지 않는다.
+   * 그래서 tpl/sga.xlsx · tpl/rev.xlsx 를 그대로 열어, 우리가 아는 시트만 고치고
+   * 나머지 파트는 원본 바이트 그대로 다시 담는다. 건드리지 않은 것은 깨질 수 없다.
+   * ======================================================================== */
+
   function procSga() {
     var m = S.m, b = $('#btnSgaProc');
     b.disabled = true;
-    MpXlsx.loadXlsx()
-      .then(function () { return fullRows('mp_erp_sga', m, 'adate,vno,cat,acct,descr,amt,team_raw,mg,dept,emp,wdate'); })
+    var Z;
+    MpTpl.load('sga')
+      .then(function (z) { Z = MpTpl.copy(z); return fullRows('mp_erp_sga', m, 'adate,vno,cat,acct,descr,amt,team_raw,mg,dept,emp,wdate'); })
       .then(function (rows) {
         if (!rows.length) throw new Error(D.moOf(m) + '월 ERP 판관비 데이터가 없습니다.');
-        var det = rows.filter(function (r) { return r.cat; });
-        var un = rows.filter(function (r) { return !r.cat; });
-        var piv = {}, tot = 0, pivSum = 0;
-        det.forEach(function (r) {
-          var t = teamOf(r);
-          piv[t] = piv[t] || {};
-          piv[t][r.cat] = (piv[t][r.cat] || 0) + Number(r.amt || 0);
+
+        /* ① 원장 (Sheet1) — 템플릿 헤더 순서 그대로 */
+        var d = [SGA_COLS], tot = 0;
+        rows.forEach(function (r) {
+          d.push([r.adate, r.vno, r.cat, r.acct, r.descr, Number(r.amt || 0),
+                  r.team_raw, r.mg, r.dept, r.emp, r.wdate]);
           tot += Number(r.amt || 0);
         });
-        var p = [[], [], ['합계 : 차변금액'], ['팀명', '이동계획', '요약']];
-        var order = D.TEAMS.map(function (t) { return t; })
-          .concat(Object.keys(piv).filter(function (t) { return D.TEAMS.indexOf(t) < 0; }).sort());
-        order.forEach(function (t) {
-          if (!piv[t]) return;
-          var sub = 0, first = true;
-          Object.keys(piv[t]).sort().forEach(function (c) {
-            sub += piv[t][c]; pivSum += piv[t][c];
-            p.push([first ? D.teamName(t) : null, c, piv[t][c]]); first = false;
-          });
-          p.push([D.teamName(t) + ' 요약', null, sub]);
-        });
-        p.push(['총합계', null, tot]);
-        if (Math.abs(pivSum - tot) > 0.5) {
-          throw new Error('검산 불일치 — 상세 ' + fmt0(tot) + ' vs 피벗 ' + fmt0(pivSum) + '. 가공본을 만들지 않습니다.');
-        }
-        var d = [SGA_COLS];
-        det.forEach(function (r) {
-          d.push([r.adate, r.vno, r.cat, r.acct, r.descr, Number(r.amt || 0), r.team_raw, r.mg, r.dept, r.emp, r.wdate]);
-        });
+        var p1 = MpTpl.pathOf(Z, 'Sheet1');
+        Z[p1] = MpTpl.bin(MpTpl.putSheet(MpTpl.txt(Z[p1]), d));
+
+        /* ② 계정명 → 이동계획 매핑 (Sheet2, 숨김 유지) */
         var mp = [['계정명', '이동계획']];
         Object.keys(D.S.acctMap || {}).sort().forEach(function (k) { mp.push([k, D.S.acctMap[k]]); });
-        var wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws(p, [20, 14, 18]), 'Sheet3');
-        XLSX.utils.book_append_sheet(wb, ws(d, [12, 18, 11, 22, 46, 14, 16, 14, 16, 10, 12]), 'Sheet1');
-        XLSX.utils.book_append_sheet(wb, ws(mp, [24, 14]), 'Sheet2');
-        if (un.length) {
-          var a4 = [['⚠ 미분류 계정 — 비목이 지정되지 않아 집계에서 제외된 행'], [], SGA_COLS];
-          un.forEach(function (r) {
-            a4.push([r.adate, r.vno, '', r.acct, r.descr, Number(r.amt || 0), r.team_raw, r.mg, r.dept, r.emp, r.wdate]);
-          });
-          XLSX.utils.book_append_sheet(wb, ws(a4, [12, 18, 11, 22, 46, 14, 16, 14, 16, 10, 12]), '미분류');
+        var p2s = MpTpl.pathOf(Z, 'Sheet2');
+        Z[p2s] = MpTpl.bin(MpTpl.putSheet(MpTpl.txt(Z[p2s]), mp));
+
+        /* ③ 피벗(Sheet3)은 손대지 않는다. 원본 범위만 이번 달에 맞추고
+              열 때 다시 집계하도록 표시해 둔다 — 우리가 캐시를 흉내 내지 않는다. */
+        MpTpl.refreshPivots(Z, 'Sheet1', d.length, 'K');
+
+        /* 검산 — 상세 합계가 화면 값과 같은지 (여기서 어긋나면 만들지 않는다) */
+        var ag = D.erpAgg(m);
+        if (ag && Math.abs(tot - ag.sga * 1e6) > 1) {
+          throw new Error('검산 불일치 — 원장 ' + fmt0(Math.round(tot)) +
+            '원 vs 화면 ' + fmt0(Math.round(ag.sga * 1e6)) + '원. 가공본을 만들지 않습니다.');
         }
-        writeBook(wb, D.yOf(m) + '-' + p2(D.moOf(m)) + '_판관비.xlsx');
-        flash('판관비 가공본을 내려받았습니다');
+        var un = rows.filter(function (r) { return !r.cat; });
+        MpTpl.build(Z, D.yOf(m) + '-' + p2(D.moOf(m)) + '_판관비.xlsx');
+        flash('판관비 가공본을 내려받았습니다' + (un.length ? ' (미분류 ' + un.length + '건 포함)' : ''));
       })
       .catch(function (e) { flash(e.message, true); })
       .then(function () { b.disabled = false; });
@@ -1654,40 +1649,29 @@
   function procRev() {
     var m = S.m, b = $('#btnRevProc');
     b.disabled = true;
-    MpXlsx.loadXlsx()
-      .then(function () { return fullRows('mp_erp_rev', m, 'no,vno,sdate,item,amt,vat,sum,cost,team,pcode,pname'); })
+    var Z;
+    MpTpl.load('rev')
+      .then(function (z) { Z = MpTpl.copy(z); return fullRows('mp_erp_rev', m, 'no,vno,sdate,item,amt,vat,sum,cost,team,pcode,pname'); })
       .then(function (rows) {
         if (!rows.length) throw new Error(D.moOf(m) + '월 ERP 매출 데이터가 없습니다.');
-        var piv = {}, tr = 0, tc = 0, pr = 0, pc = 0;
-        rows.forEach(function (r) {
-          var t = r.team || '미상';
-          piv[t] = piv[t] || {};
-          var o = piv[t][r.pname || '미상'] = piv[t][r.pname || '미상'] || { r: 0, c: 0 };
-          o.r += Number(r.amt || 0); o.c += Number(r.cost || 0);
-          tr += Number(r.amt || 0); tc += Number(r.cost || 0);
-        });
-        var p = [[], [], [null, null, '데이터'], ['영업그룹', '프로젝트명', '합계 : 원화금액', '합계 : 표준원가- 금액']];
-        Object.keys(piv).sort().forEach(function (t) {
-          var sr = 0, sc = 0, first = true;
-          Object.keys(piv[t]).sort().forEach(function (nm) {
-            var o = piv[t][nm]; sr += o.r; sc += o.c; pr += o.r; pc += o.c;
-            p.push([first ? t : null, nm, o.r, o.c]); first = false;
-          });
-          p.push([t + ' 요약', null, sr, sc]);
-        });
-        p.push(['총합계', null, tr, tc]);
-        if (Math.abs(pr - tr) > 0.5 || Math.abs(pc - tc) > 0.5) {
-          throw new Error('검산 불일치 — 상세와 피벗 합계가 다릅니다. 가공본을 만들지 않습니다.');
-        }
-        var d = [REV_COLS];
+
+        var d = [REV_COLS], tr = 0, tc = 0;
         rows.forEach(function (r) {
           d.push([r.no, r.vno || '', r.sdate, r.item, Number(r.amt || 0), Number(r.vat || 0),
                   Number(r.sum || 0), Number(r.cost || 0), r.team, r.pcode || '', r.pname]);
+          tr += Number(r.amt || 0); tc += Number(r.cost || 0);
         });
-        var wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws(p, [20, 44, 18, 22]), 'Sheet2');
-        XLSX.utils.book_append_sheet(wb, ws(d, [18, 18, 12, 12, 14, 12, 14, 14, 16, 14, 44]), 'Sheet1');
-        writeBook(wb, D.yOf(m) + '-' + p2(D.moOf(m)) + '_매출현황.xlsx');
+        var p1 = MpTpl.pathOf(Z, 'Sheet1');
+        Z[p1] = MpTpl.bin(MpTpl.putSheet(MpTpl.txt(Z[p1]), d));
+        MpTpl.refreshPivots(Z, 'Sheet1', d.length, 'K');
+
+        var ag = D.erpAgg(m);
+        if (ag && (Math.abs(tr - ag.rev * 1e6) > 1 || Math.abs(tc - ag.cost * 1e6) > 1)) {
+          throw new Error('검산 불일치 — 원장 매출 ' + fmt0(Math.round(tr)) + '원 / 원가 ' + fmt0(Math.round(tc)) +
+            '원 vs 화면 ' + fmt0(Math.round(ag.rev * 1e6)) + ' / ' + fmt0(Math.round(ag.cost * 1e6)) +
+            '. 가공본을 만들지 않습니다.');
+        }
+        MpTpl.build(Z, D.yOf(m) + '-' + p2(D.moOf(m)) + '_매출현황.xlsx');
         flash('매출현황 가공본을 내려받았습니다');
       })
       .catch(function (e) { flash(e.message, true); })

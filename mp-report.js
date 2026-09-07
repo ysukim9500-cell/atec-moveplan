@@ -279,6 +279,16 @@
     return out;
   }
 
+  /* 이 화면에는 상태 칩이 없다. 누른 버튼 자리에 잠깐 알린다. */
+  function flash(msg, err) {
+    var b = $('#btnRpPlanTpl');
+    if (!b) return;
+    var was = b.textContent;
+    b.textContent = (err ? '✕ ' : '✓ ') + String(msg).slice(0, 46);
+    b.classList.toggle('red', !!err);
+    setTimeout(function () { b.textContent = was; b.classList.remove('red'); }, err ? 6000 : 3000);
+  }
+
   function exportXlsx() {
     var b = $('#btnRpXlsx');
     b.disabled = true; b.textContent = '준비 중…';
@@ -318,6 +328,18 @@
       if (!MpReport._b) {
         MpReport._b = true;
         $('#btnRpXlsx').onclick = exportXlsx;
+        /* 원본 이동계획 서식 그대로 — 병합 · 수식 · 인쇄영역을 손대지 않는다 */
+        $('#btnRpPlanTpl').onclick = function () {
+          var b2 = $('#btnRpPlanTpl');
+          b2.disabled = true; b2.textContent = '준비 중…';
+          MpXlsx.planFile(monthsOf())
+            .then(function (log) {
+              var ok = log.filter(function (x) { return x.ok; }).length;
+              flash('이동계획 원본 서식으로 ' + ok + '개 월 시트를 채웠습니다');
+            })
+            .catch(function (e) { flash(e.message, true); })
+            .then(function () { b2.disabled = false; b2.textContent = '이동계획 원본 서식'; });
+        };
         $('#btnRpPrint').onclick = function () { window.print(); };
       }
       render();

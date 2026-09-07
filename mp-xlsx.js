@@ -222,6 +222,213 @@
     return wb;
   }
 
+
+  /* ==========================================================================
+   * 이동계획 · 이동계획차이 — 템플릿에 값만 얹는다
+   *
+   * 원본 월 시트에는 병합 · 테두리 · 인쇄영역 · 누적 수식(전월 시트 참조)이 들어 있다.
+   * 새로 그리면 그 전부가 사라진다. 그래서 원본을 열어 «사람이 넣는 칸» 만 덮어쓴다.
+   *
+   * 좌표는 박아 두지 않는다. 월마다 레이아웃이 달라서(7월 B4:AH78 · 8월 B3:AJ50 …)
+   * 라벨을 읽어 그 자리에 쓴다 — 업로드 파서(parseMonthSheet)가 하는 일의 반대다.
+   * ======================================================================== */
+
+  /** 시트 XML 에서 «값이 든 칸» 을 좌표와 함께 읽는다 */
+  function readCells(xml, strs) {
+    var out = {};
+    xml.replace(/<c r="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g, function (_, col, row, attr, body) {
+      var t = /t="(\w+)"/.exec(attr);
+      var hasF = body ? /<f[ >]/.test(body) : false;
+      var v = body ? (/<v>([\s\S]*?)<\/v>/.exec(body) || [])[1] : null;
+      var val = v;
+      if (t && t[1] === 's' && v != null) val = strs[+v];
+      else if (t && t[1] === 'inlineStr' && body) val = (/<t[^>]*>([\s\S]*?)<\/t>/.exec(body) || [])[1];
+      out[col + row] = { c: col, r: +row, v: val, f: hasF };
+      return _;
+    });
+    return out;
+  }
+  function sharedStrings(Z) {
+    var p = Z['xl/sharedStrings.xml'];
+    if (!p) return [];
+    var s = MpTpl.txt(p), out = [];
+    s.replace(/<si>([\s\S]*?)<\/si>/g, function (_, b) {
+      var t = ''; b.replace(/<t[^>]*>([\s\S]*?)<\/t>/g, function (_, v) { t += v; }); out.push(t);
+    });
+    return out;
+  }
+  /** 공백을 지우고 견준다 — 원본은 «제         품» 처럼 칸을 맞추려고 공백을 넣는다 */
+  function norm(v) { return v == null ? '' : String(v).replace(/\s/g, ''); }
+
+  /**
+   * 월 시트에서 팀 블록의 시작 행을 찾는다.
+   * 제목 칸이 «… N월 이동계획» 이다. 값이든 수식 결과든 그 문자열이 들어 있다.
+   */
+  function blockRows(cells) {
+    var out = [];
+    Object.keys(cells).forEach(function (ref) {
+      var x = cells[ref];
+      if (typeof x.v !== 'string') return;
+      var mm = /^(.+?)\s*\d+월\s*이동계획\s*$/.exec(x.v.trim());
+      if (mm) out.push({ row: x.r, col: x.c, name: mm[1].trim() });
+    });
+    return out.sort(function (a, b) { return a.row - b.row; });
+  }
+
+  /** 블록 안에서 «구분/항목» 라벨이 있는 행을 찾아 (섹션,항목) → 행 으로 만든다 */
+  function itemRows(cells, from, to) {
+    var byRow = {};
+    Object.keys(cells).forEach(function (ref) {
+      var x = cells[ref];
+      if (x.r < from || x.r > to) return;
+      (byRow[x.r] = byRow[x.r] || {})[x.c] = x;
+    });
+    var map = {}, sec = null;
+    Object.keys(byRow).map(Number).sort(function (a, b) { return a - b; }).forEach(function (r) {
+      var row = byRow[r];
+      var a = null, b = null;
+      Object.keys(row).forEach(function (c) {
+        if (typeof row[c].v !== 'string') return;
+        if (a === null) a = row[c]; else if (b === null && row[c].r === r) b = row[c];
+      });
+      /* 열 순서로 다시 잡는다 (객체 키 순서를 믿지 않는다) */
+      var cols = Object.keys(row).sort(function (p, q) { return MpTpl.colIdx(p) - MpTpl.colIdx(q); });
+      a = null; b = null;
+      for (var i = 0; i < cols.length; i++) {
+        var x = row[cols[i]];
+        if (typeof x.v !== 'string' || !x.v.trim()) continue;
+        if (a === null) a = x; else { b = x; break; }
+      }
+      var an = norm(a && a.v), bn = norm(b && b.v);
+      if (SEC_SET[an]) sec = SEC_KEY[an];
+      if (an === '영업이익' || an === '영업이익'.replace(/\s/g, '') || an === '공판후영업이익') { sec = null; return; }
+      if (an === '공판') { map['공판|계'] = { row: r, labelCol: (b || a).c }; sec = null; return; }
+      var key = ITEM_KEY[bn] || (sec && ITEM_KEY[an]);
+      if (sec && key) map[sec + '|' + key] = { row: r, labelCol: (b || a).c };
+    });
+    return map;
+  }
+
+  /* 라벨 ↔ 내부 이름 (공백 제거 기준) */
+  var SEC_KEY = { '매출': '매출', '매출원가': '매출원가', '매출이익': '매출이익', '판관비': '판관비' };
+  var SEC_SET = SEC_KEY;
+  var ITEM_KEY = {};
+  ['제품', '상품', '유지보수', '유상서비스', '공사', '영업수수료', '개발비', '합계',
+   '인건비', '지급수수료', '차량유지비', '여비교통비', '운반비', '기타경비', '계']
+    .forEach(function (k) { ITEM_KEY[k] = k; });
+
+  /** 그 달 시트 하나를 채운다 */
+  function fillMonth(Z, m, k, strs) {
+    var name = D.moOf(m) + '월 (2)';
+    var paths = MpTpl.sheetPaths(Z).filter(function (s) { return s.name === name; });
+    if (!paths.length) return { sheet: name, ok: false, why: '템플릿에 시트 없음' };
+    var path = paths[0].path;
+    var xml = MpTpl.txt(Z[path]);
+    var cells = readCells(xml, strs);
+    var blocks = blockRows(cells);
+    if (!blocks.length) return { sheet: name, ok: false, why: '팀 블록을 찾지 못함' };
+
+    var patch = {}, wrote = 0, skipped = [];
+    blocks.forEach(function (bk, bi) {
+      var end = (bi + 1 < blocks.length ? blocks[bi + 1].row : 100000) - 1;
+      var team = TEAM_OF_TITLE(bk.name);
+      if (!team) { skipped.push(bk.name); return; }
+      var map = itemRows(cells, bk.row, end);
+      Object.keys(map).forEach(function (key) {
+        var a = key.split('|'), sec = a[0], item = a[1];
+        var pos = map[key];
+        /* C = 월간계획, D = 금주. 라벨 칸 오른쪽 두 칸이다. */
+        var lc = MpTpl.colIdx(pos.labelCol);
+        var cPlan = MpTpl.colName(lc + 1) + pos.row;
+        var cCur  = MpTpl.colName(lc + 2) + pos.row;
+        var pv = (sec === '공판') ? K.PL(m, team, '공판', '계') : K.PL(m, team, sec, item);
+        var cv = (sec === '공판') ? K.V(m, team, '공판', '계', k) : K.V(m, team, sec, item, k);
+        if (!cells[cPlan] || !cells[cPlan].f) { if (pv != null) { patch[cPlan] = r2(pv); wrote++; } }
+        if (!cells[cCur]  || !cells[cCur].f)  { if (cv != null) { patch[cCur]  = r2(cv); wrote++; } }
+      });
+    });
+    Z[path] = MpTpl.bin(MpTpl.patchCells(xml, patch));
+    return { sheet: name, ok: true, wrote: wrote, blocks: blocks.length, skipped: skipped };
+  }
+
+  /** 원본 제목의 팀 표기 → 내부 팀 키 */
+  function TEAM_OF_TITLE(t) {
+    var n = norm(t);
+    if (n === '고객지원사업부') return D.TOTAL;
+    if (n === '사업부') return '실공통';
+    if (n === 'Repair팀'.replace(/\s/g, '') || n === '리페어팀') return '리페어팀';
+    if (n === '광역버스사업팀' || n === '광역교통지원팀') return '광역교통지원팀';
+    if (n === '택시지원팀' || n === '택시지원파트') return '택시지원파트';
+    var hit = D.TEAMS.filter(function (x) { return norm(x) === n || norm(D.teamName(x)) === n; })[0];
+    return hit || null;
+  }
+
+  /** 이동계획 원본 서식 그대로 · 선택한 달들을 채워 내려받는다 */
+  function planFile(months, k) {
+    var Z, strs, log = [];
+    return MpTpl.load('plan').then(function (z) {
+      Z = MpTpl.copy(z);
+      strs = sharedStrings(Z);
+      (months || liveMonths()).forEach(function (m) {
+        log.push(fillMonth(Z, m, k == null ? Math.max(0, K.finalK(m, D.TOTAL)) : k, strs));
+      });
+      /* 파일을 열 때 수식을 다시 계산하게 한다 — 누적·합계가 새 값으로 맞춰진다 */
+      forceCalc(Z);
+      var nm = '★' + D.yOf((months || liveMonths())[0] || D.mOf(2026, 1)) + '년 고객지원사업부 이동계획_' +
+        U.ymd(null, '').slice(2) + '.xlsx';
+      MpTpl.build(Z, nm);
+      return log;
+    });
+  }
+
+  /** 이동계획차이 — 원본 1시트에 값만 얹는다 */
+  function diffFile(rows) {
+    var Z, strs;
+    return MpTpl.load('diff').then(function (z) {
+      Z = MpTpl.copy(z); strs = sharedStrings(Z);
+      var path = MpTpl.sheetPaths(Z)[0].path;
+      var xml = MpTpl.txt(Z[path]);
+      var cells = readCells(xml, strs);
+
+      /* 원본은 B열부터 : B=월, C=항목, D=구분(계획/전주/금주), E=금액, F=차이, G=사유 */
+      var byM = {};
+      rows.forEach(function (r) { (byM[r.m] = byM[r.m] || {})[r.item] = r; });
+      var months = Object.keys(byM).map(Number).sort(function (a, b) { return a - b; });
+
+      var patch = {}, r0 = 2, n = 0;
+      months.forEach(function (m) {
+        var mStart = r0;
+        DIFF_SEC.forEach(function (sec) {
+          var x = byM[m][sec] || {}, iStart = r0;
+          [['계획', x.plan, null, null], ['전주', x.prev, null, null],
+           ['금주', x.cur, x.dPrev, x.note]].forEach(function (t) {
+            if (r0 === mStart) patch['B' + r0] = D.moOf(m) + '월';
+            if (r0 === iStart) patch['C' + r0] = sec;
+            patch['D' + r0] = t[0];
+            if (t[1] != null) patch['E' + r0] = Math.round(t[1]);
+            if (t[2] != null) patch['F' + r0] = Math.round(t[2]);
+            if (t[3]) patch['G' + r0] = t[3];
+            r0++; n++;
+          });
+        });
+      });
+      Z[path] = MpTpl.bin(MpTpl.patchCells(xml, patch));
+      forceCalc(Z);
+      MpTpl.build(Z, '이동계획차이_' + U.ymd(null, '').slice(2) + '.xlsx');
+      return { rows: n, months: months.length };
+    });
+  }
+
+  /** 열 때 전체 재계산 — 우리가 값만 바꿨으므로 합계·누적 수식이 다시 돌아야 한다 */
+  function forceCalc(Z) {
+    var p = 'xl/workbook.xml';
+    if (!Z[p]) return;
+    var s = MpTpl.txt(Z[p]);
+    if (/<calcPr[^>]*\/>/.test(s)) s = s.replace(/<calcPr[^>]*\/>/, '<calcPr calcId="0" fullCalcOnLoad="1"/>');
+    else s = s.replace(/<\/workbook>/, '<calcPr calcId="0" fullCalcOnLoad="1"/></workbook>');
+    Z[p] = MpTpl.bin(s);
+  }
+
   function loadXlsx() {
     if (global.XLSX) return Promise.resolve();
     return new Promise(function (res, rej) {
@@ -235,6 +442,8 @@
 
   global.MpXlsx = {
     loadXlsx: loadXlsx, planBook: planBook, diffBook: diffBook,
-    monthSheet: monthSheet, liveMonths: liveMonths, lbl: lbl
+    monthSheet: monthSheet, liveMonths: liveMonths, lbl: lbl,
+    /* 템플릿 기반 — 원본 서식 · 수식 · 인쇄설정을 그대로 두고 값만 얹는다 */
+    planFile: planFile, diffFile: diffFile
   };
 })(window);
