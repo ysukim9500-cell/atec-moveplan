@@ -452,16 +452,18 @@
   function doSubmit(again) {
     var m = S.m, team = S.team, k = S.week;
     var f = function (x) { return x == null ? '–' : U.fmt(x); };
-    if (!window.confirm(
-      D.teamName(team) + ' · ' + D.moOf(m) + '월 ' + (k + 1) + '주\n' +
+    U.ask(D.teamName(team) + ' · ' + D.moOf(m) + '월 ' + (k + 1) + '주',
       (again ? '수정한 내용으로 다시 제출합니다.\n' : '작성 완료로 제출합니다.\n') +
       '\n  매출            ' + f(K.V(m, team, '매출', '합계', k)) +
       '\n  매출이익        ' + f(K.V(m, team, '매출이익', '합계', k)) +
       '\n  판관비          ' + f(K.V(m, team, '판관비', '합계', k)) +
       '\n  공판후영업이익  ' + f(K.V(m, team, '공판후영업이익', '계', k)) +
       '\n\n제출 시각이 기록되고 경영지원팀이 확인합니다.\n' +
-      '제출한 뒤에도 달이 열려 있는 동안은 고칠 수 있습니다.')) return;
+      '제출한 뒤에도 달이 열려 있는 동안은 고칠 수 있습니다.', again ? '다시 제출' : '작성 완료')
+      .then(function (ok) { if (ok) sendSubmit(m, team, k, again); });
+  }
 
+  function sendSubmit(m, team, k, again) {
     D.setSubmit(m, team, k, weekSig(m, team, k))
       .then(function () {
         return D.audit('작성 완료', { m: m, team: team, ref: (k + 1) + '주', after: again ? '재제출' : '제출' });
@@ -472,14 +474,17 @@
 
   function cancelSubmit() {
     var m = S.m, team = S.team, k = S.week;
-    if (!window.confirm(D.teamName(team) + ' · ' + D.moOf(m) + '월 ' + (k + 1) + '주\n\n' +
-      '작성 완료를 취소합니다. 기록된 제출 시각이 지워집니다.')) return;
-    D.unsubmit(m, team, k)
-      .then(function () {
-        return D.audit('작성 완료 취소', { m: m, team: team, ref: (k + 1) + '주', after: '취소' });
-      })
-      .then(function () { flash('제출을 취소했습니다'); render(); })
-      .catch(fail);
+    U.ask(D.teamName(team) + ' · ' + D.moOf(m) + '월 ' + (k + 1) + '주',
+      '작성 완료를 취소합니다. 기록된 제출 시각이 지워집니다.', '취소하기', true)
+      .then(function (ok) {
+        if (!ok) return;
+        return D.unsubmit(m, team, k)
+          .then(function () {
+            return D.audit('작성 완료 취소', { m: m, team: team, ref: (k + 1) + '주', after: '취소' });
+          })
+          .then(function () { flash('제출을 취소했습니다'); render(); })
+          .catch(fail);
+      });
   }
 
   /* 상세를 고치면 그 항목의 기준 주차 값도 소계로 맞춘다 */
@@ -572,7 +577,6 @@
         var id = this.dataset.del, d = null;
         D.S.detail.forEach(function (x) { if (x.id === id) d = x; });
         if (!d) return;
-        if (!window.confirm('「' + d.item + '」 항목을 삭제합니다.\n입력한 금액과 변동 내용이 함께 지워지고 소계가 다시 계산됩니다.')) return;
         var sec = secOfGrp(d.grp, 'rev'), item = itemOfGrp(d.grp);
         /* 지우는 행이 원가를 갖고 있었거나, 남은 상세 중 원가를 가진 것이 있을 때만
            매출원가 소계를 다시 쓴다. 그렇지 않으면 상세와 무관하게 손으로 넣어 둔
@@ -580,11 +584,16 @@
         var hadCost = (d.cost != null) ||
           kidsOf(sec, item).some(function (x) { return x.id !== id && x.cost != null; });
         var m = S.m, team = S.team, wk = S.week;   /* 응답이 온 뒤에 읽으면 다른 주차를 쓴다 */
-        D.delDetail(id)
-          .then(function () { return syncAt(m, team, wk, sec, item); })
-          .then(function () { return hadCost ? syncAt(m, team, wk, '매출원가', item) : null; })
-          .then(function () { K.bust(); flash('삭제했습니다'); render(); })
-          .catch(fail);
+        U.ask('「' + d.item + '」 항목 삭제',
+          '입력한 금액과 변동 내용이 함께 지워지고 소계가 다시 계산됩니다.', '삭제', true)
+          .then(function (ok) {
+            if (!ok) return;
+            return D.delDetail(id)
+              .then(function () { return syncAt(m, team, wk, sec, item); })
+              .then(function () { return hadCost ? syncAt(m, team, wk, '매출원가', item) : null; })
+              .then(function () { K.bust(); flash('삭제했습니다'); render(); })
+              .catch(fail);
+          });
       };
     });
     var cb = $('#btnCum');

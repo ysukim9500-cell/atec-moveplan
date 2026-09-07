@@ -1260,12 +1260,14 @@
     var k = K.lastFilledK(m);
     var use = k >= 0 ? k : (D.weeksOf(m) - 1);
     var meta = D.S.erpMeta[m], before = D.stateOf(m);
-    if (!window.confirm(
-      D.moOf(m) + '월을 마감 확정합니다.\n\n' +
+    U.ask(D.moOf(m) + '월 마감 확정',
       'ERP 확정 : 매출 ' + meta.rev_cnt + '건 / 판관비 ' + meta.sga_cnt + '건\n' +
       '최종 OL  : ' + (use + 1) + '주\n\n' +
       '확정하면 이 달은 잠깁니다. 값 수정 · 상세 · 변동 사유가 모두 차단되고,\n' +
-      '풀려면 사유를 남겨 확정을 해제해야 합니다.')) return;
+      '풀려면 사유를 남겨 확정을 해제해야 합니다.', '마감 확정', true)
+      .then(function (ok) { if (ok) doClose(m, use, meta, before); });
+  }
+  function doClose(m, use, meta, before) {
     D.setPeriod(m, { state: 'final', final_k: use,
                      final_src: 'ERP 마감 · 매출 ' + meta.rev_cnt + '건 / 판관비 ' + meta.sga_cnt + '건' })
       .then(function () {
@@ -1434,12 +1436,18 @@
   function save() {
     var m = UP.m, b = $('#btnErpSave');
     if (m == null) return;
-    if (!window.confirm(
-      D.moOf(m) + '월 ERP 확정본을 등록합니다.\n\n' +
+    U.ask(D.moOf(m) + '월 ERP 확정본 등록',
       (UP.rev ? '매출현황 ' + UP.rev.rows.length + '건\n' : '') +
       (UP.sga ? '판관비 ' + UP.sga.rows.length + '건\n' : '') +
-      '\n기존 ' + D.moOf(m) + '월 확정본이 있으면 이 파일로 바뀝니다.')) return;
+      '\n기존 ' + D.moOf(m) + '월 확정본이 있으면 이 파일로 바뀝니다.', '등록', true)
+      .then(function (ok) {
+        if (!ok) { upLog('등록을 취소했습니다.', 'wn'); return; }
+        doSave(m, b);
+      });
+  }
 
+  function doSave(m, b) {
+    upLog('등록을 시작합니다…');
     b.disabled = true; b.textContent = '등록 중…';
     var rev = UP.rev ? UP.rev.rows.map(function (r) { var o = {}; for (var k in r) o[k] = r[k]; o.m = m; return o; }) : null;
     var sga = UP.sga ? UP.sga.rows.map(function (r) { var o = {}; for (var k in r) o[k] = r[k]; o.m = m; return o; }) : null;
@@ -1554,9 +1562,10 @@
       if (!o6 || !D.ORG2TEAM[o6]) org[r.mg || r.team_raw || '(빈칸)'] = 1;
     });
     var nn = Object.keys(un).length + Object.keys(org).length;
-    if (nn && !window.confirm('미분류 항목이 ' + nn + '건 있습니다.\n' +
-        '해당 금액은 집계에서 제외된 채 가공본이 만들어집니다.\n\n그래도 내려받겠습니까?')) return;
-    fn();
+    if (!nn) { fn(); return; }
+    U.ask('미분류 항목 ' + nn + '건',
+      '해당 금액은 집계에서 제외된 채 가공본이 만들어집니다.\n\n그래도 내려받겠습니까?', '내려받기')
+      .then(function (ok) { if (ok) fn(); });
   }
 
   function procSga() {
@@ -1730,12 +1739,16 @@
     $('#btnSgaMatchReset').onclick = function () {
       if (!MpAuth.isAdmin()) { flash('경영지원팀만 초기화할 수 있습니다', true); return; }
       var n = Object.keys(MATCH).filter(function (k) { return k.indexOf(S.m + '|') === 0; }).length;
-      if (!window.confirm(D.moOf(S.m) + '월의 적요 매칭 확정 이력 ' + n + '건을 모두 지웁니다.\n' +
-        '사람이 판단한 결과가 사라지고 다시 «확인 필요» 상태로 돌아갑니다.')) return;
-      clearMatch(S.m)
-        .then(function () { return D.audit('적요 매칭 초기화', { m: S.m, ref: '확정 이력', before: n + '건', after: '전부 삭제' }); })
-        .then(function () { flash('확정 이력을 지웠습니다'); render(); })
-        .catch(function (e) { flash(e.message, true); });
+      U.ask(D.moOf(S.m) + '월 적요 매칭 확정 이력 초기화',
+        '확정 이력 ' + n + '건을 모두 지웁니다.\n' +
+        '사람이 판단한 결과가 사라지고 다시 «확인 필요» 상태로 돌아갑니다.', '초기화', true)
+        .then(function (ok) {
+          if (!ok) return;
+          return clearMatch(S.m)
+            .then(function () { return D.audit('적요 매칭 초기화', { m: S.m, ref: '확정 이력', before: n + '건', after: '전부 삭제' }); })
+            .then(function () { flash('확정 이력을 지웠습니다'); render(); })
+            .catch(function (e) { flash(e.message, true); });
+        });
     };
     $('#btnSgaFold').onclick = function () { S.fold = !S.fold; render(); };
     $('#btnSgaProc').onclick = function () { guardProc(S.m, procSga); };

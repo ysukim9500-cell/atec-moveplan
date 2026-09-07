@@ -251,6 +251,50 @@
     });
   }
 
+  /* ---------- 확인 창 ----------
+     window.confirm 을 쓰지 않는다. 브라우저가 «이 페이지에서 대화 상자를 추가로
+     표시하지 않음» 을 켜면 confirm 은 묻지도 않고 false 를 돌려준다 — 그러면
+     버튼을 눌러도 아무 일이 없고, 화면에는 아무 말도 남지 않는다.
+     확인은 우리 화면 안에서 받는다. */
+  var ASKBOX = null;
+  function ask(title, body, okLabel, danger) {
+    return new Promise(function (resolve) {
+      if (!ASKBOX) {
+        ASKBOX = document.createElement('div');
+        ASKBOX.className = 'askwrap';
+        document.body.appendChild(ASKBOX);
+      }
+      var done = false;
+      var close = function (v) {
+        if (done) return;
+        done = true;
+        ASKBOX.className = 'askwrap';
+        ASKBOX.innerHTML = '';
+        document.removeEventListener('keydown', onKey, true);
+        resolve(v);
+      };
+      var onKey = function (e) {
+        if (e.key === 'Escape') { e.preventDefault(); close(false); }
+        if (e.key === 'Enter') { e.preventDefault(); close(true); }
+      };
+      ASKBOX.innerHTML = '<div class="askbg"></div><div class="askbox" role="dialog" aria-modal="true">' +
+        '<div class="askh">' + esc(title) + '</div>' +
+        '<div class="askb">' + String(body || '').split('\n').map(function (l) {
+          return l.trim() === '' ? '<div class="askgap"></div>' : '<div>' + esc(l) + '</div>';
+        }).join('') + '</div>' +
+        '<div class="askf"><button class="btn" data-a="0">취소</button>' +
+        '<button class="btn ' + (danger ? 'red' : 'dark') + '" data-a="1">' + esc(okLabel || '확인') + '</button></div></div>';
+      ASKBOX.className = 'askwrap on';
+      ASKBOX.querySelector('.askbg').onclick = function () { close(false); };
+      $('button[data-a]', ASKBOX).forEach(function (b) {
+        b.onclick = function () { close(this.dataset.a === '1'); };
+      });
+      var ok = ASKBOX.querySelector('button[data-a="1"]');
+      if (ok) ok.focus();
+      document.addEventListener('keydown', onKey, true);
+    });
+  }
+
   /* ---------- 범례 ---------- */
   function legend(host, items) {
     if (!host) return;
@@ -264,6 +308,6 @@
     esc: esc, fmt: fmt, fmt0: fmt0, sgn: sgn, dcls: dcls, pct: pct, niceMax: niceMax,
     kst: kst, ymd: ymd, ymdhm: ymdhm, ago: ago,
     tabs: tabs, lineChart: lineChart, barsH: barsH, legend: legend,
-    tipShow: tipShow, tipHide: tipHide
+    tipShow: tipShow, tipHide: tipHide, ask: ask
   };
 })(window);

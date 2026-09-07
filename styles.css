@@ -870,3 +870,23 @@ td.plancol{background:var(--band-plan);color:var(--muted);font-weight:400}
 /* 당월 없음 프로젝트 — 사라진 줄은 «확정» 강조를 벗기고 바탕을 눌러 둔다 */
 #tblRevTeam tr.projrow.gone td{background:#FBFBFC}
 #tblRevTeam td.curcol.off{background:transparent;color:var(--faint);font-weight:400}
+
+/* ============================================================
+   확인 창 — window.confirm 을 대신한다.
+   브라우저가 «대화 상자 추가 표시 안 함» 을 켜면 confirm 은 묻지도 않고
+   false 를 돌려준다. 그러면 버튼을 눌러도 아무 일이 없다. 우리 화면에서 묻는다.
+   ============================================================ */
+.askwrap{display:none}
+.askwrap.on{display:block}
+.askbg{position:fixed;inset:0;background:rgba(20,26,30,.42);z-index:300}
+.askbox{position:fixed;z-index:301;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(520px,calc(100vw - 32px));background:var(--paper);border:1px solid var(--rule);
+  border-radius:10px;box-shadow:0 18px 48px rgba(20,26,30,.28);overflow:hidden}
+.askh{padding:15px 18px 11px;font-size:15px;font-weight:700;color:var(--ink);
+  border-bottom:1px solid var(--rule2)}
+.askb{padding:14px 18px;font-size:12.5px;line-height:1.75;color:var(--ink2);
+  max-height:52vh;overflow:auto;white-space:pre-wrap;font-variant-numeric:tabular-nums}
+.askb .askgap{height:9px}
+.askf{display:flex;justify-content:flex-end;gap:8px;padding:11px 18px 14px;
+  border-top:1px solid var(--rule2);background:var(--soft)}
+.askf .btn{min-width:78px;justify-content:center}

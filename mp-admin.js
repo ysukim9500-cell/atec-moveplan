@@ -114,14 +114,17 @@
          전 팀 중 마지막으로 쓴 주차를 상한으로 삼는다. */
       var k = K.lastFilledK(m);
       var use = k >= 0 ? k : (D.weeksOf(m) - 1);
-      if (!window.confirm(
-        mo + '월을 최종확정합니다.\n\n' +
+      U.ask(mo + '월 최종확정',
         '최종 OL = ' + (use + 1) + '주\n\n' +
         '확정하면 이 달은 잠깁니다. 값 수정 · 상세 · 변동사유가 모두 차단되고,\n' +
-        '풀려면 사유를 남겨 확정을 해제해야 합니다.')) return;
-      D.setPeriod(m, { state: 'final', final_k: use, final_src: '관리자 확정 · ' + U.ymd() })
-        .then(function () { return D.audit('최종 OL 확정', { m: m, ref: '월 상태', before: D.stateOf(m), after: '최종확정 · ' + (use + 1) + '주' }); })
-        .then(function () { K.bust(); flash(mo + '월을 확정했습니다'); render(); }).catch(fail);
+        '풀려면 사유를 남겨 확정을 해제해야 합니다.', '최종확정', true)
+        .then(function (ok) {
+          if (!ok) return;
+          var was = D.stateOf(m);
+          return D.setPeriod(m, { state: 'final', final_k: use, final_src: '관리자 확정 · ' + U.ymd() })
+            .then(function () { return D.audit('최종 OL 확정', { m: m, ref: '월 상태', before: was, after: '최종확정 · ' + (use + 1) + '주' }); })
+            .then(function () { K.bust(); flash(mo + '월을 확정했습니다'); render(); }).catch(fail);
+        });
       return;
     }
     if (what === 'unlock') {
@@ -164,11 +167,15 @@
         var role = this.dataset.role != null ? this.value : (p.mpRole || '');
         var team = this.dataset.team != null ? this.value : (p.team || (role === 'admin' ? '*' : D.TEAMS[0]));
         if (!role) {
-          if (!window.confirm(p.name + ' 의 이동계획 접근을 없앱니다.\n이 사람은 더 이상 어떤 데이터도 볼 수 없습니다.')) { render(); return; }
-          D.removeMember(id)
-            .then(function () { return D.audit('팀원 해제', { team: p.team, ref: p.email, before: p.mpRole, after: '없음' }); })
-            .then(function () { p.mpRole = null; p.team = null; flash('접근을 없앴습니다'); renderMembers(); })
-            .catch(fail);
+          U.ask(p.name + ' 의 이동계획 접근 해제',
+            '이 사람은 더 이상 어떤 데이터도 볼 수 없습니다.', '접근 없애기', true)
+            .then(function (ok) {
+              if (!ok) { render(); return; }
+              return D.removeMember(id)
+                .then(function () { return D.audit('팀원 해제', { team: p.team, ref: p.email, before: p.mpRole, after: '없음' }); })
+                .then(function () { p.mpRole = null; p.team = null; flash('접근을 없앴습니다'); renderMembers(); })
+                .catch(fail);
+            });
           return;
         }
         if (role === 'admin') team = '*';
