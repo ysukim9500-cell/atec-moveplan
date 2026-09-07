@@ -64,6 +64,14 @@ update mp_notes   set team = '광역교통지원팀' where team = '광역버스�
 update mp_submit  set team = '광역교통지원팀' where team = '광역버스사업팀';
 update mp_members set team = '광역교통지원팀' where team = '광역버스사업팀';
 
+-- 사람이 판단한 적요 매칭 확정. 팀명이 키의 일부라 안 옮기면 그 결과가 통째로
+-- 무시되고 다시 «확인 필요» 로 돌아간다.
+update mp_desc_match set team = '광역교통지원팀' where team = '광역버스사업팀';
+
+-- mp_audit(변경 이력)과 mp_erp_rev(ERP 원본)은 건드리지 않는다.
+--   이력은 «그때 그렇게 기록됐다» 는 사실이고, 고치면 이력이 아니게 된다.
+--   ERP 원본의 옛 표기는 mp_org_map 이 대표 표기로 모아 준다.
+
 -- ---- 3. 팀 목록 ------------------------------------------------------------
 update mp_config
    set val = '["광역교통지원팀","택시지원팀","리페어팀","수도권버스지원팀","AFC지원파트","실공통"]'::jsonb
