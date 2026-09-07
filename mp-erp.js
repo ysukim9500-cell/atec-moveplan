@@ -197,14 +197,17 @@
     var prevM = m - 1, hasPrev = !!D.S.erpMeta[prevM] && !!D.S.erpSga[prevM];
     /* 전월 비교가 되는 달인지 머리줄에서 먼저 밝힌다 — 표를 다 보고 나서
        «왜 증감이 비어 있지» 하고 되짚게 만들지 않는다. */
-    pv.className = 'chip ' + (hasPrev ? '' : 'warn');
-    pv.innerHTML = hasPrev
-      ? '전월 비교 · <b>' + D.yOf(prevM) + '년 ' + D.moOf(prevM) + '월</b>'
-      : '전월(' + D.moOf(prevM) + '월) 확정 데이터 없음 — 전월 대비 분석 불가';
     $$('#btnSgaProc,#btnRevProc,#btnErpXlsx').forEach(function (b) { b.disabled = !meta; });
     if (!meta) {
       st.className = 'chip warn';
       st.textContent = D.yOf(m) + '년 ' + D.moOf(m) + '월 확정 데이터 없음';
+      /* 당월이 없으면 전월 비교를 말할 자리가 아니다 */
+      pv.className = 'chip hide'; pv.innerHTML = '';
+      /* 숨기기만 하면 옛 달 표가 그대로 남는다. 비워 둔다. */
+      ['#erpKpi', '#sgaValid', '#tblErpRecon', '#tblErpTeam', '#tblSgaTeam', '#sgaDetail',
+       '#tblSgaCat', '#chSga', '#tblRevTeam', '#tblSgaMatch'].forEach(function (sel) {
+        var e = $(sel); if (e) e.innerHTML = '';
+      });
       $('#erpBody').classList.add('hide');
       $('#erpEmpty').classList.remove('hide');
       $('#erpEmptyMsg').innerHTML = '경영지원팀이 ' + D.moOf(m) + '월 ERP 확정 엑셀(판관비 / 매출현황)을 올리면 이 화면이 열립니다. ' +
@@ -215,6 +218,12 @@
       return;
     }
     st.className = 'chip ok';
+    /* 전월 비교가 되는 달인지 머리줄에서 먼저 밝힌다 — 표를 다 보고 나서
+       «왜 증감이 비어 있지» 하고 되짚게 만들지 않는다. */
+    pv.className = 'chip ' + (hasPrev ? '' : 'warn');
+    pv.innerHTML = hasPrev
+      ? '전월 비교 · <b>' + D.yOf(prevM) + '년 ' + D.moOf(prevM) + '월</b>'
+      : '전월(' + D.moOf(prevM) + '월) 확정 데이터 없음 — 전월 대비 분석 불가';
     st.innerHTML = D.yOf(m) + '년 ' + D.moOf(m) + '월 마감 · 매출 <b>' + meta.rev_cnt +
       '</b>건 / 판관비 <b>' + meta.sga_cnt + '</b>건';
     $('#erpEmpty').classList.add('hide');
