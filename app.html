@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ATEC 이동계획</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20260914f">
+<link rel="stylesheet" href="styles.css?v=20260914g">
 </head>
 <body>
 
@@ -232,6 +232,8 @@
         <div id="erpBody" class="hide">
           <div class="sec-title"><h2>최종 OL 대비 대사</h2><span id="erpSub"></span></div>
           <div class="grid g4" id="erpKpi"></div>
+          <!-- 매출 명세에서만 — 원가 · 이익 · 마진율 (주인공은 위 매출 카드다) -->
+          <div class="grid g3 hide" id="erpKpi2" style="margin-top:12px"></div>
 
           <div class="card" style="margin-top:14px"><div class="hd"><div><h3>사업부 손익 대사</h3>
             <div class="desc">최종 OL 은 예측이고 ERP 는 확정입니다. 차이가 5% 를 넘으면 표시됩니다 —
@@ -384,18 +386,18 @@
   </div>
 </div>
 
-<script src="mp-auth.js?v=20260914f"></script>
-<script src="mp-data.js?v=20260914f"></script>
-<script src="mp-calc.js?v=20260914f"></script>
-<script src="mp-ui.js?v=20260914f"></script>
-<script src="mp-xlsx.js?v=20260914f"></script>
-<script src="mp-plan.js?v=20260914f"></script>
-<script src="mp-week.js?v=20260914f"></script>
-<script src="mp-admin.js?v=20260914f"></script>
-<script src="mp-import.js?v=20260914f"></script>
-<script src="mp-sga.js?v=20260914f"></script>
-<script src="mp-erp.js?v=20260914f"></script>
-<script src="mp-report.js?v=20260914f"></script>
+<script src="mp-auth.js?v=20260914g"></script>
+<script src="mp-data.js?v=20260914g"></script>
+<script src="mp-calc.js?v=20260914g"></script>
+<script src="mp-ui.js?v=20260914g"></script>
+<script src="mp-xlsx.js?v=20260914g"></script>
+<script src="mp-plan.js?v=20260914g"></script>
+<script src="mp-week.js?v=20260914g"></script>
+<script src="mp-admin.js?v=20260914g"></script>
+<script src="mp-import.js?v=20260914g"></script>
+<script src="mp-sga.js?v=20260914g"></script>
+<script src="mp-erp.js?v=20260914g"></script>
+<script src="mp-report.js?v=20260914g"></script>
 <script>
 (function () {
   'use strict';

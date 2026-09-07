@@ -207,7 +207,7 @@
       /* 당월이 없으면 전월 비교를 말할 자리가 아니다 */
       pv.className = 'chip hide'; pv.innerHTML = '';
       /* 숨기기만 하면 옛 달 표가 그대로 남는다. 비워 둔다. */
-      ['#erpKpi', '#sgaValid', '#tblErpRecon', '#tblErpTeam', '#tblSgaTeam', '#sgaDetail',
+      ['#erpKpi', '#erpKpi2', '#sgaValid', '#tblErpRecon', '#tblErpTeam', '#tblSgaTeam', '#sgaDetail',
        '#tblSgaCat', '#chSga', '#tblRevTeam', '#tblSgaMatch', '#tblErpNote'].forEach(function (sel) {
         var e = $(sel); if (e) e.innerHTML = '';
       });
@@ -398,7 +398,12 @@
    */
   function renderKpi(m, a, o, p) {
     var prevM = m - 1, pa = D.S.erpMeta[prevM] ? K.act(prevM, D.TOTAL) : null;
-    $('#erpKpi').innerHTML = (S.kind === 'sga') ? sgaKpi(a, o, pa, prevM) : revKpi(a, o, pa);
+    /* 두 구분이 같은 이야기를 같은 순서로 한다 — 주인공 → 비교 기준 → 변화.
+       판관비는 «당월 판관비», 매출은 «당월 매출» 이 주인공일 뿐 배치는 같다. */
+    $('#erpKpi').innerHTML = (S.kind === 'sga') ? sgaKpi(a, o, pa, prevM) : revKpi(a, o, pa, prevM);
+    var k2 = $('#erpKpi2');
+    k2.classList.toggle('hide', S.kind !== 'rev');
+    k2.innerHTML = (S.kind === 'rev') ? revKpi2(a, o, pa) : '';
   }
 
   function sgaKpi(a, o, pa, prevM) {
@@ -413,7 +418,26 @@
           [['OL 달성률', sO ? pctS(sC / sO - 0) : '–', null]], 'big diff', dP);
   }
 
-  function revKpi(a, o, pa) {
+  /**
+   * 매출 KPI 윗줄 — 판관비와 같은 배치.
+   *   hero  당월 매출   quiet 전월 매출   diff 전월 대비 증감액 · 증감률
+   * 원가 · 이익 · 마진율은 아랫줄(revKpi2)로 내린다. 넷을 같은 무게로 늘어놓으면
+   * 이 화면이 무엇을 보는 화면인지 사라진다.
+   */
+  function revKpi(a, o, pa, prevM) {
+    var rC = a.rev, rP = pa ? pa.rev : null, rO = o.rev;
+    var dP = (rP == null) ? null : rC - rP;
+    var dO = (rO == null) ? null : rC - rO;
+    return kpi('당월 매출', uf(rC), [['최종 OL', uf(rO), dO]], 'hero') +
+      kpi('전월 매출', uf(rP), [['기준', rP == null ? '데이터 없음' : ymFull(prevM), null]], 'quiet') +
+      kpi('전월 대비 증감액', dP == null ? '–' : us(dP), [['OL 대비', dO == null ? '–' : us(dO), dO]], 'big diff', dP) +
+      kpi('전월 대비 증감률',
+          (rP && dP != null) ? pctS(dP / Math.abs(rP)) : '–',
+          [['OL 달성률', rO ? pctS(rC / rO) : '–', null]], 'big diff', dP);
+  }
+
+  /** 매출 KPI 아랫줄 — 원가 · 이익 · 마진율. 각각 전월과 최종 OL 을 함께 본다. */
+  function revKpi2(a, o, pa) {
     var mgC = a.rev ? (a.rev - a.cost) / a.rev : null;
     var mgP = (pa && pa.rev) ? (pa.rev - pa.cost) / pa.rev : null;
     var mgO = o.rev ? ((o.rev - o.cost) / o.rev) : null;
@@ -427,8 +451,7 @@
         ['최종 OL', ov == null ? '–' : f(ov), dO == null ? null : (isPct ? dO * 100 : dO), dO == null ? null : sf(dO)]
       ], '', undefined, note);
     };
-    return row('매출', a.rev, pa ? pa.rev : null, o.rev) +
-           row('원가', a.cost, pa ? pa.cost : null, o.cost) +
+    return row('원가', a.cost, pa ? pa.cost : null, o.cost) +
            row('이익', a.rev - a.cost, pa ? (pa.rev - pa.cost) : null,
                (o.rev == null || o.cost == null) ? null : (o.rev - o.cost), false,
                '매출 − 원가 (개발비 제외)') +
