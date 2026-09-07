@@ -937,5 +937,6 @@ td.plancol{background:var(--band-plan);color:var(--muted);font-weight:400}
    레일이 어두운 바탕(#333B41)이라 로고의 회색 «에이텍모빌리티» 가 묻힌다.
    로고 색을 고치지 않고 흰 판 위에 올린다 — 지급받은 로고를 그대로 쓴다.
    ============================================================ */
-.rail .brand{padding:18px 18px 16px;border-bottom:1px solid rgba(255,255,255,.09)}
-.rail .brand img{display:block;width:100%;max-width:172px;height:auto}
+.rail .brand{padding:20px 12px 18px;border-bottom:1px solid rgba(255,255,255,.09)}
+/* 레일 폭(236px)에서 좌우 여백만 남기고 꽉 채운다 — 가로로 긴 로고라 폭이 곧 크기다 */
+.rail .brand img{display:block;width:100%;max-width:212px;height:auto;margin:0 auto}
