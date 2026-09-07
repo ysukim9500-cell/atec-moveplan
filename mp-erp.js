@@ -1433,7 +1433,7 @@
       .then(function (r) { if (!r.ok) return r.text().then(function (t) { throw new Error('DELETE ' + path + ' — ' + t.slice(0, 160)); }); });
   }
 
-  function save() {
+  function saveErp() {
     var m = UP.m, b = $('#btnErpSave');
     if (m == null) return;
     U.ask(D.moOf(m) + '월 ERP 확정본 등록',
@@ -1551,7 +1551,8 @@
     x['!cols'] = (w || []).map(function (n) { return { wch: n }; });
     return x;
   }
-  function save(wb, name) { XLSX.writeFile(wb, name); }
+  /** 통합문서를 파일로 내려준다. 이름을 save 로 두면 다른 save 와 겹친다 — 실제로 겹쳤다. */
+  function writeBook(wb, name) { XLSX.writeFile(wb, name); }
 
   /** 미분류가 남아 있으면 그 금액이 빠진 채로 만들어진다는 것을 먼저 알린다 */
   function guardProc(m, fn) {
@@ -1617,7 +1618,7 @@
           });
           XLSX.utils.book_append_sheet(wb, ws(a4, [12, 18, 11, 22, 46, 14, 16, 14, 16, 10, 12]), '미분류');
         }
-        save(wb, D.yOf(m) + '-' + p2(D.moOf(m)) + '_판관비.xlsx');
+        writeBook(wb, D.yOf(m) + '-' + p2(D.moOf(m)) + '_판관비.xlsx');
         flash('판관비 가공본을 내려받았습니다');
       })
       .catch(function (e) { flash(e.message, true); })
@@ -1660,7 +1661,7 @@
         var wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws(p, [20, 44, 18, 22]), 'Sheet2');
         XLSX.utils.book_append_sheet(wb, ws(d, [18, 18, 12, 12, 14, 12, 14, 14, 16, 14, 44]), 'Sheet1');
-        save(wb, D.yOf(m) + '-' + p2(D.moOf(m)) + '_매출현황.xlsx');
+        writeBook(wb, D.yOf(m) + '-' + p2(D.moOf(m)) + '_매출현황.xlsx');
         flash('매출현황 가공본을 내려받았습니다');
       })
       .catch(function (e) { flash(e.message, true); })
@@ -1717,7 +1718,7 @@
         });
       });
       XLSX.utils.book_append_sheet(wb, ws(a3, [16, 46, 7, 11, 11, 11]), '프로젝트 집계');
-      save(wb, 'ATEC_ERP_Recon_' + D.yOf(m) + p2(D.moOf(m)) + '_' + U.ymd(null, '') + '.xlsx');
+      writeBook(wb, 'ATEC_ERP_Recon_' + D.yOf(m) + p2(D.moOf(m)) + '_' + U.ymd(null, '') + '.xlsx');
       flash('비교표를 내려받았습니다');
     }).catch(function (e) { flash(e.message, true); })
       .then(function () { b.disabled = false; });
@@ -1755,7 +1756,7 @@
     $('#btnRevProc').onclick = function () { guardProc(S.m, procRev); };
     $('#btnErpXlsx').onclick = xlsxErp;
     $('#btnErpAnalyze').onclick = analyze;
-    $('#btnErpSave').onclick = save;
+    $('#btnErpSave').onclick = saveErp;
   }
 
   global.MpErp = {
