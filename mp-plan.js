@@ -442,6 +442,12 @@
       else if (sec === '영업이익') av = a.op;
       else if (sec === '공판') av = a.gongpan;
       else if (sec === '공판후영업이익') av = a.op2;
+      else if (sec === '판관비' && item !== '합계') {
+        /* 판관비 비목은 ERP 엑셀의 «이동계획» 열이 알려 준다 — 사람이 정할 것이 없다 */
+        var ag = D.erpAgg(m);
+        var pot = ag && (team === D.TOTAL ? ag.sgaCat : (ag.byTeam[team] || {}).cat);
+        if (pot && pot[item] != null) av = Math.round(pot[item] * 10000) / 10000;
+      }
       else if ((sec === '매출' || sec === '매출원가') && ITEM2GRP[item] && team !== D.TOTAL) {
         var bi = D.revByItem(m, team).item[item];
         if (bi) { av = Math.round((sec === '매출' ? bi.rev : bi.cost) * 10000) / 10000; mapped = true; }
@@ -449,7 +455,8 @@
     }
     if (av == null) {
       var why = (sec === '매출' || sec === '매출원가') && ITEM2GRP[item] && team !== D.TOTAL
-        ? '매칭된 프로젝트 없음' : 'ERP에 항목 구분 근거 없음';
+        ? '매칭된 프로젝트 없음'
+        : (sec === '판관비' ? '이 달 이 비목의 지출 없음' : 'ERP에 항목 구분 근거 없음');
       return '<td class="n actc"><span class="zero">–</span></td><td class="n actc"><span class="zero">–</span></td>' +
         '<td class="actc"><span class="zero">' + why + '</span></td>';
     }

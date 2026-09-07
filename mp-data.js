@@ -159,7 +159,7 @@
        사업부합계에는 들어 있으므로 이걸 따로 보여 줘야 «6팀 합 + 미배분 = 사업부합계» 가 된다. */
     var out = { rev: 0, cost: 0, sga: 0, byTeam: {}, sgaCat: {},
                 unassigned: { rev: 0, cost: 0, sga: 0 } };
-    TEAMS.forEach(function (t) { out.byTeam[t] = { rev: 0, cost: 0, sga: 0 }; });
+    TEAMS.forEach(function (t) { out.byTeam[t] = { rev: 0, cost: 0, sga: 0, cat: {} }; });
 
     S.erpRev[m].forEach(function (r) {
       var org6 = S.orgMap[r.team] || r.team;
@@ -174,8 +174,11 @@
       var t = org6 ? (ORG2TEAM[org6] || null) : null;
       var a = Number(r.amt) / 1e6;
       out.sga += a;
-      if (t && out.byTeam[t]) out.byTeam[t].sga += a;
-      else out.unassigned.sga += a;
+      if (t && out.byTeam[t]) {
+        out.byTeam[t].sga += a;
+        /* 팀 안에서도 비목별로 갈라 둔다. 이동계획 화면이 비목 줄마다 확정실적을 붙인다. */
+        if (r.cat) out.byTeam[t].cat[r.cat] = (out.byTeam[t].cat[r.cat] || 0) + a;
+      } else out.unassigned.sga += a;
       if (r.cat) out.sgaCat[r.cat] = (out.sgaCat[r.cat] || 0) + a;
     });
     return out;
