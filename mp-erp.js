@@ -17,6 +17,7 @@
   var $ = U.$, $$ = U.$$, esc = U.esc, fmt = U.fmt, fmt0 = U.fmt0, dcls = U.dcls, pct = U.pct;
 
   var S = { m: null, kind: 'sga', unit: 'M', open: {}, upload: false,
+            cat: {},          /* 팀|비목 → 적요 상세 펼침 */
             th: 100,          /* 세부 변동 표시기준 (만원) — v20 기본값 */
             fold: false,      /* 비목·적요 전체 상세 접기 */
             matchOpen: false };
@@ -183,8 +184,10 @@
       S.m = v; S.open = {};
       Promise.all([D.loadErp(v), D.loadErp(v - 1), loadMatch(v)]).then(render).catch(render);
     });
-    U.tabs($('#erpUnit'), [{ id: 'M', label: '백만원' }, { id: 'W', label: '원' }],
+    U.tabs($('#erpUnit'), [{ id: 'M', label: '백만원' }, { id: 'W', label: '전체금액' }],
       S.unit, function (v) { S.unit = v; render(); });
+    /* 전체금액은 자릿수가 많아 숫자열을 넓혀야 한다 */
+    $('#p-erp').classList.toggle('won', S.unit !== 'M');
     U.tabs($('#erpKind'), [{ id: 'sga', label: '판관비 명세' }, { id: 'rev', label: '매출 명세' }],
       S.kind, function (v) { S.kind = v; render(); });
 
@@ -378,11 +381,11 @@
     var dP = (sP == null) ? null : sC - sP;
     var dO = (sO == null) ? null : sC - sO;
     return kpi('당월 판관비', uf(sC), [['최종 OL', uf(sO), dO]], 'hero') +
-      kpi('전월 판관비', uf(sP), [['기준', sP == null ? '데이터 없음' : (D.moOf(prevM) + '월 확정'), null]], 'quiet') +
-      kpi('전월 대비 증감액', dP == null ? '–' : us(dP), [['OL 대비', dO == null ? '–' : us(dO), dO]], 'diff', dP) +
+      kpi('전월 판관비', uf(sP), [['기준', sP == null ? '데이터 없음' : ymFull(prevM), null]], 'quiet') +
+      kpi('전월 대비 증감액', dP == null ? '–' : us(dP), [['OL 대비', dO == null ? '–' : us(dO), dO]], 'big diff', dP) +
       kpi('전월 대비 증감률',
-          (sP && dP != null) ? ((dP > 0 ? '+' : '−') + Math.abs(dP / Math.abs(sP) * 100).toFixed(1) + '%') : '–',
-          [['OL 달성률', sO ? pct(sC / sO) : '–', null]], 'diff', dP);
+          (sP && dP != null) ? pctS(dP / Math.abs(sP)) : '–',
+          [['OL 달성률', sO ? pctS(sC / sO - 0) : '–', null]], 'big diff', dP);
   }
 
   function revKpi(a, o, pa) {
@@ -406,16 +409,26 @@
            row('마진율', mgC, mgP, mgO, true);
   }
 
+  /**
+   * KPI 카드 (v20 마크업).
+   *   hero  당월 판관비 — 이 화면의 주인공이라 배경째 채운다
+   *   quiet 전월 — 비교 대상일 뿐이라 한 단계 낮춘다
+   *   diff  증감 — 파란 배경으로 «달라진 값» 임을 표시한다
+   * olrow 는 최종 OL 줄. 점선으로 나눠 «계획 대비» 임을 눈으로 가른다.
+   */
   function kpi(label, val, rows, cls, signOf) {
     var unit = (String(val).indexOf('%') >= 0 || val === '–') ? '' :
-               '<small>' + (S.unit === 'M' ? '백만' : '원') + '</small>';
-    return '<div class="kpi ' + (cls || '') + '">' +
-      '<div class="lb">' + esc(label) + (cls === 'quiet' || cls === 'diff' ? '' : ' <span class="chip on">확정</span>') + '</div>' +
-      '<div class="vl ' + (signOf === undefined ? '' : dcls(signOf)) + '">' + val + unit + '</div>' +
+               '<small>' + (S.unit === 'M' ? '백만원' : '전체금액') + '</small>';
+    var tag = (cls === 'quiet' || cls === 'diff') ? '' : ' <span class="tag act">확정</span>';
+    return '<div class="card kpi ' + (cls || '') + '">' +
+      '<div class="lb">' + esc(label) + tag + '</div>' +
+      '<div class="vl ' + (signOf === undefined ? '' : 'delta ' + dcls(signOf)) + '">' + val + unit + '</div>' +
       rows.map(function (r) {
         var txt = (r[3] !== undefined && r[3] !== null) ? r[3] : (r[2] == null ? '' : us(r[2]));
-        return '<div class="row"><span>' + esc(r[0]) + '</span><b>' + r[1] + '</b>' +
-          '<span class="d ' + (r[2] == null ? '' : dcls(r[2])) + '">' + txt + '</span></div>';
+        return '<div class="kpirow' + (/OL/.test(r[0]) ? ' olrow' : '') + '">' +
+          '<span>' + esc(r[0]) + '</span><b class="num">' + r[1] +
+          (txt ? ' <i class="delta ' + (r[2] == null ? '' : dcls(r[2])) + '">' + txt + '</i>' : '') +
+          '</b></div>';
       }).join('') + '</div>';
   }
 
@@ -515,68 +528,114 @@
     return v;
   }
 
-  /* ---------- ② 팀별 비교 ---------- */
+  /* ---------- ② 팀별 비교 ----------
+     v20 배치 : 팀 → ① 계정별 변동 요약 칩 ② 이동계획(비목)별 변동 + 주요 원인 TOP3
+                    → ③ 비목 행을 누르면 적요별 전월·당월·증감 전체 상세
+     한 번에 다 펼치지 않는다. 위에서 아래로 좁혀 들어가야 원인이 눈에 남는다. */
   function renderSgaTeam(m, cur, prv, hasPrev) {
     var teams = {};
     Object.keys(cur).forEach(function (t) { teams[t] = 1; });
     if (hasPrev) Object.keys(prv).forEach(function (t) { teams[t] = 1; });
-    var keys = Object.keys(teams).sort(function (a, b) { return totOf(cur[b]) - totOf(cur[a]); });
+    var keys = D.TEAMS.filter(function (t) { return teams[t]; })
+      .concat(Object.keys(teams).filter(function (t) { return D.TEAMS.indexOf(t) < 0; }).sort());
 
-    /* 규모 막대는 증감률 크기다 — 팀마다 규모가 달라 금액으로는 큰 팀만 보인다 */
-    var maxRate = 0;
+    /* 규모 막대는 증감액 크기를 0 기준 좌우로 나타낸다 (v20 문구 그대로) */
+    var maxD = 0;
     keys.forEach(function (t) {
-      var p = totOf(prv[t]);
-      if (!hasPrev || !p) return;
-      var r = Math.abs((totOf(cur[t]) - p) / p);
-      if (r > maxRate) maxRate = r;
+      if (!hasPrev) return;
+      var d = Math.abs(totOf(cur[t]) - totOf(prv[t]));
+      if (d > maxD) maxD = d;
     });
 
-    var thMan = S.th;
-    var h = '<thead><tr><th style="width:170px">팀</th>' +
-      '<th class="n" style="width:96px">' + (hasPrev ? D.moOf(m - 1) + '월' : '전월') + '</th>' +
-      '<th class="n cur" style="width:96px">' + D.moOf(m) + '월</th>' +
-      '<th class="n" style="width:92px">증감액</th><th class="n" style="width:78px">증감률</th>' +
-      '<th class="c" style="width:112px">규모</th>' +
-      '<th>' + (hasPrev ? '주요 증감 원인' : '금액이 큰 항목 (당월)') + '</th></tr></thead><tbody>';
-    var tot = 0, ptot = 0;
+    var W = (S.unit !== 'M');
+    var h = '<colgroup><col style="width:186px"><col style="width:' + (W ? 134 : 104) + 'px">' +
+      '<col style="width:' + (W ? 148 : 118) + 'px"><col style="width:' + (W ? 134 : 104) + 'px">' +
+      '<col style="width:82px"><col style="width:112px"><col></colgroup>' +
+      '<thead><tr><th>팀명</th>' +
+      '<th class="n prevcol">' + (hasPrev ? ymFull(m - 1) : '전월') + '</th>' +
+      '<th class="n curcol">' + ymFull(m) + '</th>' +
+      '<th class="n">증감액</th><th class="n">증감률</th><th class="c">규모</th>' +
+      '<th>주요 증감 원인</th></tr></thead><tbody>';
+
+    var tc = 0, tp = 0;
     keys.forEach(function (t) {
       var c = totOf(cur[t]), p = hasPrev ? totOf(prv[t]) : null;
-      var d = p == null ? null : c - p;
-      var rate = (p == null || !p) ? null : d / Math.abs(p);
-      tot += c; if (p != null) ptot += p;
+      var d = (p == null) ? null : c - p;
+      var rt = (p == null || p === 0) ? null : d / Math.abs(p);
+      tc += c; if (p != null) tp += p;
+      var miss = (c === 0 && hasPrev && p > 0);
 
-      /* 그 팀의 모든 비목을 합쳐 상위 항목을 뽑는다 */
-      var items = [];
-      var C = cur[t] || {}, P = hasPrev ? (prv[t] || {}) : {}, cats = {};
-      Object.keys(C).forEach(function (x) { cats[x] = 1; });
-      if (hasPrev) Object.keys(P).forEach(function (x) { cats[x] = 1; });
-      Object.keys(cats).forEach(function (c2) {
-        G.itemsOf(rcOf(m, t, c2, C[c2], P[c2], hasPrev), hasPrev).forEach(function (r) { items.push(r); });
-      });
-      var fl = G.filterItems(items, hasPrev, thMan);
+      var cz;
+      if (hasPrev) {
+        var tops = teamTop(m, t, cur, prv, 2);
+        cz = tops.length ? tops.map(function (r) {
+          var nm = G.prettyDesc(r.desc, r.raw);
+          var sh = nm.length > 32 ? nm.slice(0, 32) + '…' : nm;
+          return '<span class="czi" title="' + esc(nm) + '"><b class="delta ' + dcls(r.v) + '">' +
+            us(r.v / 1e6) + '</b>' + esc(sh) + (r.pend ? ' <span class="bdg pend">확인</span>' : '') + '</span>';
+        }).join('') : '<span class="q">적요 단위 변동 없음</span>';
+      } else cz = '<span class="q">전월 데이터 없음</span>';
 
-      h += '<tr class="trow" data-t="' + esc(t) + '">' +
-        '<td class="tname"><span class="cv">' + (S.open[t] ? '▾' : '▸') + '</span>' +
-        esc(t === '미배분' ? '미배분 (조직 매핑 없음)' : D.teamName(t)) + '</td>' +
-        '<td class="n">' + (p == null ? '<span class="zero">–</span>' : uf(p / 1e6)) + '</td>' +
-        '<td class="n cur"><b>' + uf(c / 1e6) + '</b></td>' +
-        '<td class="n ' + dcls(d) + '">' + (d == null ? '–' : us(d / 1e6)) + '</td>' +
-        '<td class="n ' + dcls(d) + '">' + (rate == null ? '–' : ((rate > 0 ? '+' : '−') + Math.abs(rate * 100).toFixed(1) + '%')) + '</td>' +
-        '<td class="c">' + rateBar(rate, maxRate) + '</td>' +
-        '<td class="cz">' + causeCell(fl, hasPrev, 2) + '</td></tr>';
-      if (S.open[t]) h += teamPanel(t, cur[t], fl, hasPrev);
+      var open = !!S.open[t];
+      h += '<tr class="trow' + (open ? ' on' : '') + '" data-t="' + esc(t) + '">' +
+        '<td class="sec tname"><span class="cv">' + (open ? '▾' : '▸') + '</span>' +
+        esc(t === '미배분' ? '미배분 (조직 매핑 없음)' : D.teamName(t)) +
+        (miss ? ' <span class="bdg miss">미계상</span>' : '') + '</td>' +
+        '<td class="n prevcol">' + (p == null ? '–' : uf(p / 1e6)) + '</td>' +
+        '<td class="n curcol"><b>' + uf(c / 1e6) + '</b></td>' +
+        '<td class="n delta ' + dcls(d) + '">' + (d == null ? '–' : us(d / 1e6)) + '</td>' +
+        '<td class="n delta ' + dcls(d) + '">' + pctS(rt) + '</td>' +
+        '<td class="c">' + magBar(d, maxD) + '</td>' +
+        '<td class="cz">' + cz + '</td></tr>' +
+        '<tr class="prow"' + (open ? '' : ' style="display:none"') + '><td colspan="7" class="pcell">' +
+        (open ? sgaPanel(m, t, cur, prv, hasPrev) : '') + '</td></tr>';
     });
-    var dt = hasPrev ? (tot - ptot) : null;
-    h += '<tr class="grand"><td>합 계</td><td class="n">' + (hasPrev ? uf(ptot / 1e6) : '–') + '</td>' +
-      '<td class="n cur"><b>' + uf(tot / 1e6) + '</b></td>' +
-      '<td class="n ' + dcls(dt) + '">' + (dt == null ? '–' : us(dt / 1e6)) + '</td>' +
-      '<td class="n"></td><td></td><td></td></tr>';
-    $('#tblSgaTeam').innerHTML = h + '</tbody>';
+
+    var tdt = hasPrev ? (tc - tp) : null, trt = (hasPrev && tp) ? tdt / Math.abs(tp) : null;
+    h += '<tr class="grand"><td>합 계</td>' +
+      '<td class="n prevcol">' + (hasPrev ? uf(tp / 1e6) : '–') + '</td>' +
+      '<td class="n curcol"><b>' + uf(tc / 1e6) + '</b></td>' +
+      '<td class="n delta ' + dcls(tdt) + '">' + (tdt == null ? '–' : us(tdt / 1e6)) + '</td>' +
+      '<td class="n delta ' + dcls(tdt) + '">' + pctS(trt) + '</td><td></td><td></td></tr>';
+
+    var tbl = $('#tblSgaTeam');
+    tbl.className = 't sgaSum';
+    tbl.innerHTML = h + '</tbody>';
+
+    $('#sgaTeamNote').innerHTML =
+      '팀명을 클릭하면 <b>계정별 변동 요약</b>과 <b>이동계획(비목)별 변동</b>이 펼쳐지고, ' +
+      '비목 행을 누르면 <b>적요별 전월·당월·증감 전체 상세</b>까지 내려갑니다.' +
+      (hasPrev ? ' 규모 막대는 전월 대비 <b>증감액 크기</b>를 0 기준 좌우로 나타냅니다.'
+               : ' 전월 확정 데이터가 없어 증감·규모는 표시하지 않습니다.');
 
     $$('#tblSgaTeam tr.trow').forEach(function (tr) {
       tr.onclick = function () { var t = this.dataset.t; S.open[t] = !S.open[t]; render(); };
     });
-    $('#sgaThIn').value = thMan;
+    $$('#tblSgaTeam tr.catrow').forEach(function (tr) {
+      tr.onclick = function (e) {
+        e.stopPropagation();
+        var ck = this.dataset.ck;
+        S.cat[ck] = !S.cat[ck];
+        render();
+      };
+    });
+    $('#sgaThIn').value = S.th;
+  }
+
+  function ymFull(m) { return D.yOf(m) + '년 ' + D.moOf(m) + '월'; }
+  function ymShort(m) { var v = D.moOf(m); return (v < 10 ? '0' : '') + v + '월'; }
+  function pctS(r) {
+    if (r == null || isNaN(r) || !isFinite(r)) return '–';
+    var v = Math.round(r * 1000) / 10;
+    return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1) + '%';
+  }
+  /* 0 을 가운데 두고 좌우로 뻗는 막대 — 증감액 크기다 */
+  function magBar(v, max) {
+    if (v == null || !(max > 0)) return '';
+    var w = Math.min(50, Math.abs(v) / max * 50);
+    var cls = dcls(v);
+    var st = v >= 0 ? ('left:50%;width:' + w.toFixed(1) + '%') : ('right:50%;width:' + w.toFixed(1) + '%');
+    return '<span class="mbar"><i class="' + cls + '" style="' + st + '"></i></span>';
   }
 
   function totOf(T) {
@@ -586,87 +645,102 @@
     return s;
   }
 
-  /** 상위 원인 — 확인 필요를 먼저, 그다음 변동액 큰 순 (itemsOf 가 이미 그 순서다) */
-  function causeCell(fl, hasPrev, n) {
-    var top = fl.rows.slice(0, n || 2);
-    if (!top.length) return '<span class="q">—</span>';
-    return top.map(function (x) {
-      var nm = G.prettyDesc(x.desc, x.raw);
-      if (nm.length > 26) nm = nm.slice(0, 26) + '…';
-      var val = hasPrev ? us(x.v / 1e6) : uf(x.c / 1e6);
-      return '<span class="czi" title="' + esc(G.prettyDesc(x.desc, x.raw)) + '">' +
-        '<b' + (hasPrev ? ' class="' + dcls(x.v) + '"' : '') + '>' + val + '</b> ' + esc(nm) + tagOf(x) + '</span>';
-    }).join('') + (fl.rows.length > top.length ? ' <span class="q">외 ' + (fl.rows.length - top.length) + '건</span>' : '');
-  }
-
-  function tagOf(x) {
-    if (x.pend) return ' <span class="bdg pend">확인 필요</span>';
-    if (x.neu) return ' <span class="bdg">신규</span>';
-    if (x.gone) return ' <span class="bdg">당월 없음</span>';
-    if (x.merged) return ' <span class="bdg">합치기 확정</span>';
-    return '';
-  }
-
-  function teamPanel(t, T, fl, hasPrev) {
-    var cats = Object.keys(T || {}).sort(function (a, b) { return T[b].total - T[a].total; });
-    var chips = cats.map(function (c) {
-      return '<span class="chip">' + esc(c) + ' <b>' + uf(T[c].total / 1e6) + '</b></span>';
-    }).join(' ');
-    return '<tr class="prow"><td colspan="7"><div class="pcell">' +
-      '<div class="pttl">비목별</div><div class="pchips">' + chips + '</div>' +
-      '<div class="pttl">적요별 상위 ' + Math.min(15, fl.rows.length) + '건' +
-      (fl.hidN ? ' <span class="q">· 기준 미만 ' + fl.hidN + '건 숨김</span>' : '') + '</div>' +
-      descTable(fl, hasPrev, 15) + '</div></td></tr>';
-  }
-
-  /* ---------- ④ 적요 상세표 ---------- */
-  function descTable(fl, hasPrev, cap) {
-    var list = fl.rows;
-    if (!list.length) {
-      return '<div class="note info" style="margin:0">표시 기준 이상의 적요가 없습니다.' +
-        (fl.hidN ? ' — 기준 미만 ' + fmt0(fl.hidN) + '건(합계 ' + us(fl.hidSum / 1e6) +
-          ') 숨김. 기준을 낮추거나 <b>전체 보기</b>를 누르세요.' : '') + '</div>';
-    }
-    cap = cap || 300;
-    var show = list.slice(0, cap), sc = 0, sp = 0;
-    var h = '<table class="t sub"><thead><tr><th>적요</th><th style="width:150px">계정명</th>' +
-      '<th class="n" style="width:92px">전월</th><th class="n" style="width:92px">당월</th>' +
-      '<th class="n" style="width:92px">증감</th><th class="c" style="width:92px">구분</th></tr></thead><tbody>';
-    show.forEach(function (r) {
-      sc += r.c; sp += (r.p || 0);
-      var lbl;
-      if (r.pend) {
-        if (r.prevDesc && r.currDesc)
-          lbl = '<div>' + esc(G.prettyDesc(r.prevDesc, r.prevRaw)) + '</div>' +
-                '<div class="q2">↳ 당월 후보 : ' + esc(G.prettyDesc(r.currDesc, r.currRaw)) + '</div>';
-        else if (r.prevDesc)
-          lbl = '<div>' + esc(G.prettyDesc(r.prevDesc, r.prevRaw)) + '</div><div class="q2">↳ 당월 유사 후보 다수</div>';
-        else
-          lbl = '<div>' + esc(G.prettyDesc(r.currDesc, r.currRaw)) + '</div><div class="q2">↳ 전월 유사 후보 다수</div>';
-      } else {
-        lbl = descHtml(r);
-      }
-      h += '<tr class="' + (r.pend ? 'pend' : (r.gone ? 'gone' : '')) + '"><td class="txt">' + lbl + '</td>' +
-        '<td class="txt q">' + esc(G.acctLabel(r.acct)) + '</td>' +
-        '<td class="n">' + (hasPrev ? uf(r.p / 1e6) : '<span class="zero">–</span>') + '</td>' +
-        '<td class="n cur"><b>' + uf(r.c / 1e6) + '</b></td>' +
-        '<td class="n ' + (hasPrev ? dcls(r.v) : 'flat') + '">' + (hasPrev ? us(r.v / 1e6) : '–') + '</td>' +
-        '<td class="c">' + (tagOf(r) || '<span class="q">기존</span>') + '</td></tr>';
+  /** 그 팀 전체에서 변동이 큰 적요 n 건 */
+  function teamTop(m, t, cur, prv, n) {
+    var items = [], C = cur[t] || {}, P = prv[t] || {}, cats = {};
+    Object.keys(C).forEach(function (c) { cats[c] = 1; });
+    Object.keys(P).forEach(function (c) { cats[c] = 1; });
+    Object.keys(cats).forEach(function (c) {
+      G.itemsOf(rcOf(m, t, c, C[c], P[c], true), true).forEach(function (r) { items.push(r); });
     });
-    h += '</tbody></table><div class="dsum"><span>표시 ' + fmt0(show.length) + '건 · 전월 <b>' +
-      (hasPrev ? uf(sp / 1e6) : '–') + '</b> → 당월 <b>' + uf(sc / 1e6) + '</b>' +
-      (hasPrev ? ' · 증감 <b>' + us((sc - sp) / 1e6) + '</b>' : '') + '</span>';
-    if (fl.hidN) h += '<span>기준 미만 숨김 ' + fmt0(fl.hidN) + '건 · ' + us(fl.hidSum / 1e6) + '</span>';
-    if (list.length > cap) h += '<span>외 ' + fmt0(list.length - cap) + '건 — 변동액 큰 순 ' + cap + '건까지</span>';
-    return h + '</div>';
+    return items.filter(function (r) { return Math.abs(r.v) >= 1; })
+      .sort(function (x, y) { return Math.abs(y.v) - Math.abs(x.v); }).slice(0, n || 2);
   }
 
-  /** 같은 카테고리는 공통 앞부분을 굵게 */
-  function descHtml(o) {
-    var t = G.prettyDesc(o.desc, o.raw), c = G.descCat(t);
-    if (c && c !== t && t.indexOf(c) === 0) return '<b>' + esc(c) + '</b>' + esc(t.slice(c.length));
-    return esc(t);
+  /* ---------- 팀 패널 ---------- */
+  function sgaPanel(m, t, cur, prv, hasPrev) {
+    var C = cur[t] || {}, P = hasPrev ? (prv[t] || {}) : {};
+    var names = {};
+    Object.keys(C).forEach(function (c) { names[c] = 1; });
+    if (hasPrev) Object.keys(P).forEach(function (c) { names[c] = 1; });
+    var all = D.ITEMS['판관비'];
+    var cats = all.filter(function (c) { return names[c]; })
+      .concat(Object.keys(names).filter(function (c) { return all.indexOf(c) < 0; }).sort());
+
+    var rows = cats.map(function (c) {
+      var cc = C[c] ? C[c].total : 0, pp = hasPrev ? (P[c] ? P[c].total : 0) : null;
+      return { cat: c, c: cc, p: pp, v: hasPrev ? (cc - pp) : cc,
+               rt: (hasPrev && pp) ? (cc - pp) / Math.abs(pp) : null };
+    });
+    var sumC = 0, sumP = 0;
+    rows.forEach(function (x) { sumC += x.c; sumP += (x.p || 0); });
+
+    var h = '<div class="tpanel">';
+    h += '<div class="pn-h">' + esc(D.teamName(t)) + ' · 계정별 변동 요약</div><div class="chips">';
+    if (!rows.length) h += '<span class="hint">해당 팀의 판관비 발생 내역이 없습니다.</span>';
+    rows.forEach(function (x) {
+      h += '<span class="cchip">' + esc(x.cat) + ' <b class="delta ' + (hasPrev ? dcls(x.v) : 'flat') + '">' +
+        (hasPrev ? us(x.v / 1e6) : uf(x.c / 1e6)) + '</b></span>';
+    });
+    h += '</div>';
+
+    h += '<div class="pn-h2"><span>' + esc(D.teamName(t)) +
+      ' · 이동계획(비목)별 변동 — 행을 누르면 적요별 상세</span>' +
+      '<span class="pn-note">상세 표시 기준 ' + (S.th > 0 ? fmt0(S.th) + '만원 이상' : '전체') + '</span></div>';
+
+    h += '<table class="t pnT"><colgroup><col class="c-cat"><col class="c-n"><col class="c-n">' +
+      '<col class="c-n"><col class="c-r"><col></colgroup><thead><tr><th>이동계획</th>' +
+      '<th class="n prevcol">' + (hasPrev ? ymShort(m - 1) : '전월') + '</th>' +
+      '<th class="n curcol">' + ymShort(m) + '</th><th class="n">증감액</th><th class="n">증감률</th>' +
+      '<th>주요 증감 원인 (TOP3)</th></tr></thead><tbody>';
+
+    rows.forEach(function (x) {
+      var ck = t + '|' + x.cat, open = !!S.cat[ck];
+      var items = G.itemsOf(rcOf(m, t, x.cat, C[x.cat], hasPrev ? P[x.cat] : null, hasPrev), hasPrev);
+      var fl = G.filterItems(items, hasPrev, S.th);
+      var nPend = items.filter(function (r) { return r.pend; }).length;
+      var top = items.filter(function (r) { return hasPrev ? Math.abs(r.v) >= 1 : r.c !== 0; })
+        .sort(function (p, q) { return Math.abs(hasPrev ? q.v : q.c) - Math.abs(hasPrev ? p.v : p.c); })
+        .slice(0, 3);
+
+      h += '<tr class="catrow' + (open ? ' on' : '') + '" data-ck="' + esc(ck) + '">' +
+        '<td class="sec"><span class="cv">' + (open ? '▾' : '▸') + '</span>' + esc(x.cat) + '</td>' +
+        '<td class="n prevcol">' + (hasPrev ? uf(x.p / 1e6) : '–') + '</td>' +
+        '<td class="n curcol"><b>' + uf(x.c / 1e6) + '</b></td>' +
+        '<td class="n delta ' + (hasPrev ? dcls(x.v) : 'flat') + '">' + (hasPrev ? us(x.v / 1e6) : '–') + '</td>' +
+        '<td class="n delta ' + (hasPrev ? dcls(x.v) : 'flat') + '">' + pctS(x.rt) + '</td>' +
+        '<td class="why">';
+      if (!top.length) h += '<span class="hint">' + (hasPrev ? '변동 없음' : '내역 없음') + '</span>';
+      top.forEach(function (r, i) {
+        var nm = G.prettyDesc(r.desc, r.raw);
+        h += '<div class="wrow"><span class="rk">' + (i + 1) + '</span>' +
+          '<span class="wn" title="' + esc(nm) + '">' + esc(nm) + '</span>' +
+          (r.pend ? '<span class="bdg pend">확인 필요</span>' : '') +
+          (r.neu ? '<span class="bdg new">신규</span>' : '') +
+          (r.gone ? '<span class="bdg gone">당월 없음</span>' : '') +
+          '<span class="wv">' +
+          (hasPrev ? '<span class="q">' + uf(r.p / 1e6) + ' → ' + uf(r.c / 1e6) + '</span>' : '') +
+          '<b class="delta ' + (hasPrev ? dcls(r.v) : 'flat') + '">' +
+          (hasPrev ? us(r.v / 1e6) : uf(r.c / 1e6)) + '</b></span></div>';
+      });
+      h += '<div class="pn-more">' + (open ? '▾ 적요 상세 펼침' : '▸ 적요 상세 보기') +
+        ' · 표시 ' + fl.rows.length + '건' +
+        (fl.hidN ? ' · 기준 미만 ' + fl.hidN + '건 숨김' : '') +
+        (nPend ? ' · <b class="pendtx">매칭 확인 필요 ' + nPend + '건</b>' : '') + '</div></td></tr>';
+      h += '<tr class="detrow"' + (open ? '' : ' style="display:none"') + '><td colspan="6" class="dcell">' +
+        (open ? descTable(fl, hasPrev, 300) : '') + '</td></tr>';
+    });
+
+    h += '</tbody><tfoot><tr class="pnsum"><td>' + esc(D.teamName(t)) +
+      ' 합계 <span class="q">전액 기준</span></td>' +
+      '<td class="n prevcol">' + (hasPrev ? uf(sumP / 1e6) : '–') + '</td>' +
+      '<td class="n curcol"><b>' + uf(sumC / 1e6) + '</b></td>' +
+      '<td class="n delta ' + (hasPrev ? dcls(sumC - sumP) : 'flat') + '">' +
+      (hasPrev ? us((sumC - sumP) / 1e6) : '–') + '</td>' +
+      '<td class="n"></td><td class="q">표시 기준과 무관하게 전액 합계입니다</td></tr></tfoot></table></div>';
+    return h;
   }
+
 
   function renderSgaDetail(m, cur, prv, hasPrev) {
     var card = $('#sgaDetailCard');
