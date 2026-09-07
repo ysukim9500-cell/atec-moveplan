@@ -1453,7 +1453,7 @@
     U.ask(ymLabel(m) + ' ERP 확정본 등록',
       (UP.rev ? '매출현황 ' + UP.rev.rows.length + '건\n' : '') +
       (UP.sga ? '판관비 ' + UP.sga.rows.length + '건\n' : '') +
-      '\n기존 ' + D.moOf(m) + '월 확정본이 있으면 이 파일로 바뀝니다.', '등록', true)
+      '\n기존 ' + ymLabel(m) + ' 확정본이 있으면 이 파일로 바뀝니다.', '등록', true)
       .then(function (ok) {
         if (!ok) { upLog('등록을 취소했습니다.', 'wn'); return; }
         doSave(m, b);
