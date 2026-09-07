@@ -208,7 +208,7 @@
       pv.className = 'chip hide'; pv.innerHTML = '';
       /* 숨기기만 하면 옛 달 표가 그대로 남는다. 비워 둔다. */
       ['#erpKpi', '#sgaValid', '#tblErpRecon', '#tblErpTeam', '#tblSgaTeam', '#sgaDetail',
-       '#tblSgaCat', '#chSga', '#tblRevTeam', '#tblSgaMatch'].forEach(function (sel) {
+       '#tblSgaCat', '#chSga', '#tblRevTeam', '#tblSgaMatch', '#tblErpNote'].forEach(function (sel) {
         var e = $(sel); if (e) e.innerHTML = '';
       });
       $('#erpBody').classList.add('hide');
@@ -239,6 +239,7 @@
     $('#erpSga').classList.toggle('hide', S.kind !== 'sga');
     $('#erpRev').classList.toggle('hide', S.kind !== 'rev');
     if (S.kind === 'sga') renderSga(m); else renderRev(m);
+    renderErpNote(m);
     renderClose();
   }
 
@@ -797,26 +798,163 @@
     return esc(t);
   }
 
+  /* ---------- ④ 비목 · 적요 전체 상세 ----------
+     v20 배치 : 팀 블록 → 비목 아코디언 → 펼치면 그 비목의 적요 상세표.
+     한 표에 전부 쏟으면 어느 팀 어느 비목이 움직였는지가 사라진다. */
+  var DET = {};                       /* 팀||비목 → 펼칠 때 그릴 적요 목록 */
+
   function renderSgaDetail(m, cur, prv, hasPrev) {
-    var card = $('#sgaDetailCard');
+    var host = $('#sgaDetail');
     $('#btnSgaFold').textContent = S.fold ? '펼치기' : '접기';
-    if (S.fold) { $('#sgaDetail').innerHTML = ''; return; }
-    var items = [];
-    eachGroup(cur, prv, hasPrev, function (t, c, C, P) {
-      G.itemsOf(rcOf(m, t, c, C, P, hasPrev), hasPrev).forEach(function (r) {
-        r.team = t; r.cat = c; items.push(r);
+    $('#sgaDetailNote').innerHTML = (hasPrev
+      ? (S.th > 0 ? '전월 대비 <b>' + fmt0(S.th) + '만원 이상</b> 변동한 비목 · 적요만 표시합니다.'
+                  : '증감이 있는 비목 · 적요를 <b>전부</b> 표시합니다.')
+      : '전월 확정 데이터가 없어 증감 대신 <b>당월 구성</b>으로 표시합니다.') +
+      ' 비목 행을 누르면 적요별 전월 · 당월 · 증감 전체가 펼쳐집니다. 표시 기준은 <b>화면 필터일 뿐</b>이며 ' +
+      'ERP 총액 · 팀 합계 · 비목 합계 · 검산 금액에는 영향이 없습니다.';
+    if (S.fold) {
+      host.innerHTML = '<div class="hint" style="padding:12px">전 팀 비목 · 적요 상세가 접혀 있습니다 — <b>펼치기</b>를 누르세요.</div>';
+      return;
+    }
+
+    var thAmt = S.th * 1e4;                                   /* 만원 → 원 */
+    var names = {};
+    Object.keys(cur).forEach(function (t) { names[t] = 1; });
+    if (hasPrev) Object.keys(prv).forEach(function (t) { names[t] = 1; });
+    var order = D.TEAMS.filter(function (t) { return names[t]; })
+      .concat(Object.keys(names).filter(function (t) { return D.TEAMS.indexOf(t) < 0; }).sort());
+    var allCat = D.ITEMS['판관비'];
+
+    var teams = order.map(function (t) {
+      var C = cur[t] || {}, P = hasPrev ? (prv[t] || {}) : {}, nm = {};
+      Object.keys(C).forEach(function (c) { nm[c] = 1; });
+      if (hasPrev) Object.keys(P).forEach(function (c) { nm[c] = 1; });
+      var cs = allCat.filter(function (c) { return nm[c]; })
+        .concat(Object.keys(nm).filter(function (c) { return allCat.indexOf(c) < 0; }).sort());
+      var sum = 0, psum = 0;
+      var all = cs.map(function (c) {
+        var cc = C[c] ? C[c].total : 0, pp = hasPrev ? (P[c] ? P[c].total : 0) : 0;
+        sum += cc; psum += pp;
+        var items = G.itemsOf(rcOf(m, t, c, C[c], hasPrev ? P[c] : null, hasPrev), hasPrev);
+        return { cat: c, c: cc, p: hasPrev ? pp : null, v: hasPrev ? (cc - pp) : cc,
+                 items: items, fl: G.filterItems(items, hasPrev, S.th),
+                 pend: items.filter(function (r) { return r.pend; }).length };
+      });
+      /* 기준에 걸리지 않는 비목은 접는다 — 다만 «확인 필요» 는 기준과 무관하게 남긴다 */
+      var vis = all.filter(function (x) {
+        if (!hasPrev) return x.c !== 0;
+        return x.pend > 0 || Math.abs(x.v) >= Math.max(thAmt, 1) || x.fl.rows.length > 0;
+      });
+      vis.sort(function (a, b) { return Math.abs(b.v) - Math.abs(a.v); });
+      return { team: t, all: all, cats: vis, sum: sum, psum: hasPrev ? psum : null,
+               d: hasPrev ? (sum - psum) : null, miss: (sum === 0 && hasPrev && psum > 0) };
+    });
+
+    var shown = teams.filter(function (x) { return x.cats.length; });
+    var hidden = teams.filter(function (x) { return !x.cats.length; });
+    shown.sort(function (a, b) { return Math.abs(hasPrev ? b.d : b.sum) - Math.abs(hasPrev ? a.d : a.sum); });
+    var maxAbs = 0;
+    shown.forEach(function (x) { x.cats.forEach(function (c) { if (Math.abs(c.v) > maxAbs) maxAbs = Math.abs(c.v); }); });
+
+    DET = {};
+    var h = '';
+    shown.forEach(function (x) {
+      h += '<div class="tblock"><div class="tblock-hd">' +
+        '<div class="tb-name">' + esc(x.team === '미배분' ? '미배분 (조직 매핑 없음)' : D.teamName(x.team)) +
+        (x.miss ? ' <span class="bdg miss">미계상</span>' : '') + '</div>' +
+        '<div class="tb-fig">' + (hasPrev
+          ? '<span class="q">' + uf(x.psum / 1e6) + '</span> → <b>' + uf(x.sum / 1e6) + '</b>'
+          : '<b>' + uf(x.sum / 1e6) + '</b>') + '</div>' +
+        (hasPrev ? '<div class="tb-d delta ' + dcls(x.d / 1e6) + '">' + us(x.d / 1e6) + '</div>'
+                 : '<div class="tb-d"></div>') +
+        '</div><div class="tblock-bd">';
+      x.cats.forEach(function (c) {
+        var dk = x.team + '||' + c.cat;
+        DET[dk] = { fl: c.fl, hasPrev: hasPrev };
+        var rt = reasonText(c.fl.rows, hasPrev);
+        h += '<details class="acc" data-dk="' + esc(dk) + '"><summary>' +
+          '<span class="ac-name">' + esc(c.cat) + '</span>' +
+          '<span class="ac-bar">' + diffBar(c.v, maxAbs) + '</span>' +
+          '<span class="ac-val num">' + (hasPrev ? uf(c.p / 1e6) : '') + '</span>' +
+          '<span class="ac-cur num"><b>' + uf(c.c / 1e6) + '</b></span>' +
+          '<span class="ac-d num delta ' + (hasPrev ? dcls(c.v / 1e6) : 'flat') + '">' +
+            (hasPrev ? us(c.v / 1e6) : '') + '</span>' +
+          '<span class="ac-why" title="' + esc(rt) + '">' + esc(rt) +
+            (c.pend ? ' <span class="bdg pend">확인 ' + c.pend + '</span>' : '') + '</span></summary>' +
+          '<div class="dbody"></div></details>';
+      });
+      h += '</div></div>';
+    });
+
+    if (hidden.length) h += '<div class="hint" style="margin-top:8px">그 외 ' + hidden.length + '개 팀은 ' +
+      (hasPrev ? (S.th > 0 ? fmt0(S.th) + '만원 이상 변동 항목 없음' : '변동 항목 없음') : '당월 판관비 없음') +
+      ' — ' + hidden.map(function (x) { return esc(D.teamName(x.team)); }).join(' · ') + '</div>';
+
+    /* 기준을 높여 전부 가려진 경우 — 왜 비었는지와 되돌리는 방법을 함께 적는다 */
+    if (!shown.length) {
+      h = '<div class="emptybox"><div class="eh">' +
+        (hasPrev ? (S.th > 0 ? '전월 대비 ' + fmt0(S.th) + '만원 이상 변동한 비목이 없습니다.'
+                             : '전월 대비 변동이 있는 비목이 없습니다.')
+                 : '당월 판관비 데이터가 없습니다.') + '</div>' +
+        (hasPrev && S.th > 0
+          ? '<div class="ed">기준을 낮추거나 <b>전체 보기</b>를 누르면 더 작은 변동까지 볼 수 있습니다.</div>' : '') +
+        (hidden.length ? '<div class="ed">대상 팀 ' + hidden.length + '개 — ' +
+          hidden.map(function (x) { return esc(D.teamName(x.team)); }).join(' · ') + '</div>' : '') + '</div>';
+    }
+
+    /* 검산 — 표시 기준을 바꿔도 ERP 총액과 총증감은 그대로다 */
+    var shownSum = 0, hidN = 0, hidSum = 0, totC = 0, totP = 0;
+    teams.forEach(function (x) {
+      var vis = {}; x.cats.forEach(function (c) { vis[c.cat] = 1; });
+      totC += x.sum; totP += (x.psum || 0);
+      x.all.forEach(function (c) {
+        if (vis[c.cat]) {
+          c.fl.rows.forEach(function (r) { shownSum += (hasPrev ? r.v : r.c); });
+          hidN += c.fl.hidN; hidSum += c.fl.hidSum;
+        } else {
+          c.items.forEach(function (r) { hidN++; hidSum += (hasPrev ? r.v : r.c); });
+        }
       });
     });
-    var fl = G.filterItems(items, hasPrev, S.th);
-    /* 전월이 없으면 임계값은 «증감» 기준이라 걸리지 않는다. 걸리는 척하면 안 된다. */
-    $('#sgaDetailNote').innerHTML = hasPrev
-      ? ('전 팀 · 전 비목을 한 표로 봅니다 · 세부 변동 표시기준 <b>' + S.th + '만원</b> 이상' +
-         (fl.hidN ? ' · 기준 미만 ' + fl.hidN + '건 숨김' : ''))
-      : '전 팀 · 전 비목을 한 표로 봅니다 · <b>전월이 없어 표시기준은 적용되지 않습니다</b> — 금액이 있는 항목을 모두 보여 줍니다.';
-    $('#sgaDetail').innerHTML = descTable(fl, hasPrev, 300);
+    h += '<div class="dsum"><span>검산 · 당월 ERP 판관비 총액 <b>' + uf(totC / 1e6) +
+      '</b> (표시 기준과 무관하게 고정)</span>' +
+      (hasPrev ? '<span>전월 대비 총증감 <b>' + us((totC - totP) / 1e6) + '</b></span>' : '') +
+      '<span>표시된 상세 ' + (hasPrev ? '증감 합계' : '금액 합계') + ' <b>' + us(shownSum / 1e6) + '</b></span>' +
+      '<span>기준 미만 상세 생략 <b>' + fmt0(hidN) + '건</b> · ' + us(hidSum / 1e6) + '</span></div>';
+
+    host.innerHTML = h;
+    /* 적요 상세표는 펼칠 때 그린다 — 전 팀 것을 한 번에 그리면 화면이 멈춘다 */
+    $$('#sgaDetail details.acc').forEach(function (dt) {
+      dt.ontoggle = function () {
+        if (!dt.open) return;
+        var bd = dt.querySelector('.dbody');
+        if (!bd || bd.getAttribute('data-done')) return;
+        var d = DET[dt.getAttribute('data-dk')];
+        bd.innerHTML = d ? descTable(d.fl, d.hasPrev, 300) : '';
+        bd.setAttribute('data-done', '1');
+      };
+    });
   }
 
-  /* ---------- ⑤ 비목별 ---------- */
+  /** 이 비목이 왜 움직였는지 한 줄로 — 큰 것 둘과 나머지 건수 */
+  function reasonText(rows, hasPrev) {
+    var s = rows.filter(function (r) { return Math.abs(hasPrev ? r.v : r.c) >= 1; });
+    if (!s.length) return hasPrev ? '변동 없음' : '';
+    var top = s.slice(0, 2).map(function (r) {
+      var nm = G.prettyDesc(r.desc, r.raw);
+      if (nm.length > 20) nm = nm.slice(0, 20) + '…';
+      return nm + ' ' + us((hasPrev ? r.v : r.c) / 1e6);
+    });
+    return top.join('  ·  ') + (s.length > 2 ? '  외 ' + (s.length - 2) + '건' : '');
+  }
+
+  /** 왼쪽에서 자라는 단순 막대 — 길이는 가장 큰 절대값 대비. 빨강 증가 / 파랑 감소 */
+  function diffBar(v, max) {
+    var w = max > 0 ? Math.min(100, Math.abs(v) / max * 100) : 0;
+    return '<span class="dbar"><i class="' + dcls(v / 1e6) + '" style="width:' + w.toFixed(1) + '%"></i></span>';
+  }
+
+  /* ---------- ⑤ 비목별 증감 · 비목별 비교 ---------- */
   function renderSgaCat(m, ag, cur, prv, hasPrev) {
     var cats = D.ITEMS['판관비'].slice();
     Object.keys(ag.sgaCat).forEach(function (c) { if (cats.indexOf(c) < 0) cats.push(c); });
@@ -829,46 +967,113 @@
       Object.keys(prv[t]).forEach(function (c) { pSum[c] = (pSum[c] || 0) + prv[t][c].total; });
     });
 
-    /* 비목별 증감 — 0 을 가운데 두고 좌우로 */
+    /* 전월이 있으면 증감액을, 없으면 당월 확정 금액을 그린다.
+       v20 과 같다 — 비교할 게 없다고 빈 칸을 두면 그 달은 아무것도 못 본다. */
+    var vOf = function (c) {
+      return hasPrev ? ((cSum[c] || 0) - (pSum[c] || 0)) : (cSum[c] || 0);
+    };
     var maxAbs = 0;
-    cats.forEach(function (c) { maxAbs = Math.max(maxAbs, Math.abs((cSum[c] || 0) - (pSum[c] || 0))); });
+    cats.forEach(function (c) { maxAbs = Math.max(maxAbs, Math.abs(vOf(c))); });
     var bh = '';
-    if (hasPrev) {
-      cats.forEach(function (c) {
-        var d = (cSum[c] || 0) - (pSum[c] || 0);
-        bh += '<div class="dvrow"><div class="dvnm">' + esc(c) + '</div>' +
-          '<div class="dvbar">' + rateBar(maxAbs ? d / maxAbs : 0, 1) + '</div>' +
-          '<div class="dvv ' + dcls(d) + '">' + us(d / 1e6) + '</div></div>';
-      });
-    } else {
-      bh = '<div class="note info" style="margin:0">전월 확정본이 없어 증감을 그릴 수 없습니다.</div>';
-    }
-    $('#chSga').innerHTML = bh;
-    $('#sgaBarNote').textContent = hasPrev ? D.moOf(m - 1) + '월 → ' + D.moOf(m) + '월' : '전월 없음';
+    cats.forEach(function (c) {
+      var v = vOf(c);
+      var o = D.ITEMS['판관비'].indexOf(c) >= 0 ? K.OL(m, D.TOTAL, '판관비', c) : null;
+      var tip = '당월 확정 ' + uf((cSum[c] || 0) / 1e6) +
+        (hasPrev ? ' · 전월 ' + uf((pSum[c] || 0) / 1e6) : '') +
+        ' · 최종 OL ' + uf(o);
+      bh += '<div class="dvrow" title="' + esc(tip) + '"><div class="dvnm">' + esc(c) + '</div>' +
+        '<div class="dvbar">' + rateBar(maxAbs ? v / maxAbs : 0, 1) + '</div>' +
+        '<div class="dvv ' + dcls(v / 1e6) + '">' + (hasPrev ? us(v / 1e6) : uf(v / 1e6)) + '</div></div>';
+    });
+    $('#chSga').innerHTML = bh || '<div class="note info" style="margin:0">당월 판관비 명세가 없습니다.</div>';
+    $('#sgaBarNote').textContent = (hasPrev ? '전월 대비 증감액' : '당월 확정 금액') +
+      ' · 빨강 증가 / 파랑 감소 · 가장 큰 절대값을 100%로 본 상대 길이';
 
-    var maxA = 0;
-    cats.forEach(function (c) { maxA = Math.max(maxA, ag.sgaCat[c] || 0); });
-    var ch = '<thead><tr><th>비목</th><th class="n" style="width:100px">최종 OL</th>' +
-      '<th class="n cur" style="width:100px">확정</th><th class="n" style="width:96px">차이</th>' +
-      '<th class="n" style="width:78px">집행률</th><th class="c" style="width:120px">금액 비중</th></tr></thead><tbody>';
+    /* 비목별 비교 — v20 과 같은 열 : 전월 · 최종 OL · 당월 확정 · 전월 대비 · OL 대비 */
+    var ch = '<thead><tr><th>비목</th>' +
+      '<th class="n prevcol" style="width:100px">' + (hasPrev ? D.moOf(m - 1) + '월' : '전월') + '</th>' +
+      '<th class="n" style="width:100px">최종 OL</th>' +
+      '<th class="n curcol" style="width:106px">' + D.moOf(m) + '월 확정</th>' +
+      '<th class="n" style="width:100px">전월 대비</th>' +
+      '<th class="n" style="width:100px">OL 대비</th></tr></thead><tbody>';
+    var so = 0, sc = 0, sp = 0, hasOl = false;
     cats.forEach(function (cat) {
-      var a = ag.sgaCat[cat] || 0;
+      var cc = cSum[cat] || 0, pp = hasPrev ? (pSum[cat] || 0) : null;
       var known = D.ITEMS['판관비'].indexOf(cat) >= 0;
       var o = known ? K.OL(m, D.TOTAL, '판관비', cat) : null;
-      var d = o == null ? null : a - o;
-      ch += '<tr><td>' + esc(cat) + (known ? '' : ' <span class="bdg">미분류</span>') + '</td>' +
-        '<td class="n">' + uf(o) + '</td><td class="n cur"><b>' + uf(a) + '</b></td>' +
-        '<td class="n ' + dcls(d) + '">' + us(d) + '</td>' +
-        '<td class="n">' + (o ? pct(a / o) : '–') + '</td>' +
-        '<td class="c"><span class="mbar one"><i style="width:' +
-          (maxA ? (a / maxA * 100).toFixed(1) : 0) + '%"></i></span></td></tr>';
+      if (o != null) { so += o; hasOl = true; }
+      sc += cc; if (pp != null) sp += pp;
+      var dP = (pp == null) ? null : (cc - pp) / 1e6;
+      var dO = (o == null) ? null : cc / 1e6 - o;
+      ch += '<tr><td class="sec">' + esc(cat) +
+        (known ? '' : ' <span class="bdg">미분류</span>') + '</td>' +
+        '<td class="n prevcol">' + (hasPrev ? uf(pp / 1e6) : '–') + '</td>' +
+        '<td class="n">' + uf(o) + '</td>' +
+        '<td class="n curcol"><b>' + uf(cc / 1e6) + '</b></td>' +
+        '<td class="n delta ' + (dP == null ? 'flat' : dcls(dP)) + '">' + (dP == null ? '–' : us(dP)) + '</td>' +
+        '<td class="n delta ' + (dO == null ? 'flat' : dcls(dO)) + '">' + (dO == null ? '–' : us(dO)) + '</td></tr>';
     });
     var olT = K.OL(m, D.TOTAL, '판관비', '합계');
-    ch += '<tr class="grand"><td>합 계</td><td class="n">' + uf(olT) + '</td>' +
-      '<td class="n cur"><b>' + uf(ag.sga) + '</b></td>' +
-      '<td class="n ' + dcls(olT == null ? null : ag.sga - olT) + '">' +
-        us(olT == null ? null : ag.sga - olT) + '</td><td class="n"></td><td></td></tr>';
+    if (olT == null && hasOl) olT = so;
+    ch += '<tr class="grand"><td>합 계</td>' +
+      '<td class="n prevcol">' + (hasPrev ? uf(sp / 1e6) : '–') + '</td>' +
+      '<td class="n">' + uf(olT) + '</td>' +
+      '<td class="n curcol"><b>' + uf(sc / 1e6) + '</b></td>' +
+      '<td class="n delta ' + (hasPrev ? dcls((sc - sp) / 1e6) : 'flat') + '">' +
+        (hasPrev ? us((sc - sp) / 1e6) : '–') + '</td>' +
+      '<td class="n delta ' + dcls(olT == null ? null : sc / 1e6 - olT) + '">' +
+        us(olT == null ? null : sc / 1e6 - olT) + '</td></tr>';
     $('#tblSgaCat').innerHTML = ch + '</tbody>';
+  }
+
+  /* ---------- 차이 원인 · 검토 의견 (판관비 · 매출 공통) ----------
+     v20 과 같은 자리다. 팀별로 최종 OL 대비 차이를 나란히 놓고 그 옆에 사유를 적는다.
+     사유는 mp_notes(kind=erpdiff) 한 자리에만 남고, 대시보드 · 리포트 · 비교표 엑셀이 같은 값을 읽는다. */
+  function renderErpNote(m) {
+    var ag = D.erpAgg(m);
+    if (!ag) { $('#tblErpNote').innerHTML = ''; return; }
+    /* 팀장은 자기 팀만 쓴다 — RLS 가 그렇고, 칸도 그래야 한다 */
+    var W = (S.unit !== 'M');
+    $('#erpNoteDesc').innerHTML = '최종 OL 대비 <b>+</b> 는 계획보다 많이 쓰거나 많이 판 것입니다. ' +
+      '매출 · 원가는 매출현황, 판관비는 판관비 확정본에서 옵니다. ' +
+      (MpAuth.viewOnly() ? '<b>화면이 좁아 보기 전용입니다</b> — 사유 입력은 PC 에서 하세요.'
+                         : '사유는 칸을 벗어나면 바로 저장됩니다.');
+    var h = '<colgroup><col style="width:170px"><col style="width:' + (W ? 130 : 106) + 'px">' +
+      '<col style="width:' + (W ? 130 : 106) + 'px"><col style="width:' + (W ? 130 : 106) + 'px">' +
+      '<col></colgroup><thead><tr><th>팀</th>' +
+      '<th class="n">매출 OL 대비</th><th class="n">원가 OL 대비</th><th class="n">판관비 OL 대비</th>' +
+      '<th>차이 원인 · 검토 의견</th></tr></thead><tbody>';
+    D.TEAMS.forEach(function (t) {
+      var a = K.act(m, t), o = K.metrics(m, t, 'ol');
+      if (!a) return;
+      var dr = (o.rev == null) ? null : a.rev - o.rev;
+      var dc = (o.cost == null) ? null : a.cost - o.cost;
+      var ds = (o.sga == null) ? null : a.sga - o.sga;
+      var nt = D.findNote('erpdiff', m, t, null, null, null);
+      var body = nt ? nt.body : '';
+      var can = MpAuth.canWriteTeam(t) && !MpAuth.viewOnly();
+      h += '<tr><td class="sec">' + esc(D.teamName(t)) + '</td>' +
+        '<td class="n delta ' + dcls(dr) + '">' + us(dr) + '</td>' +
+        '<td class="n delta ' + dcls(dc) + '">' + us(dc) + '</td>' +
+        '<td class="n delta ' + dcls(ds) + '">' + us(ds) + '</td>' +
+        '<td class="txt">' + (can
+          ? '<textarea rows="1" class="na" data-et="' + esc(t) + '" placeholder="차이 원인을 적어 주세요">' +
+            esc(body) + '</textarea>'
+          : (body ? esc(body) : '<span class="q">' + esc(D.teamName(t)) + ' 담당자만 적을 수 있습니다</span>')) +
+        '</td></tr>';
+    });
+    $('#tblErpNote').innerHTML = h + '</tbody>';
+
+    $$('#tblErpNote textarea.na').forEach(function (ta) {
+      var fit = function () { ta.style.height = 'auto'; ta.style.height = Math.max(24, ta.scrollHeight) + 'px'; };
+      fit(); ta.oninput = fit;
+      ta.onblur = function () {
+        var t = this.dataset.et;
+        D.setNote('erpdiff', m, t, null, null, null, this.value)
+          .then(function () { flash('저장됨'); })
+          .catch(function (e) { flash(e.message, true); });
+      };
+    });
   }
 
   /* 0 을 가운데 두고 좌우로 뻗는 막대 */
