@@ -41,7 +41,8 @@
 
   var S = {
     year: null, periods: {}, plan: {}, week: {}, detail: [], notes: [],
-    erpMeta: {}, erpRev: {}, erpSga: {}, orgMap: {}, acctMap: {}, config: {}, submit: {}, submitReady: null
+    erpMeta: {}, erpRev: {}, erpSga: {}, orgMap: {}, acctMap: {}, config: {}, submit: {}, submitReady: null,
+    revMap: {}, revDone: {}, revMapReady: null
   };
 
   function key() { return Array.prototype.join.call(arguments, '|'); }
@@ -114,7 +115,12 @@
       getAll('mp_config?select=key,val&order=key'),
       /* 이 표는 나중에 추가됐다. 아직 없는 환경에서도 나머지는 떠야 한다. */
       getAll('mp_submit?select=m,team,k,submitted_at,email,sig&' + range + '&order=m,team,k')
-        .catch(function () { S.submitReady = false; return []; })
+        .catch(function () { S.submitReady = false; return []; }),
+      /* 매출 매칭도 나중에 추가됐다. 표가 없는 환경에서도 나머지는 떠야 한다. */
+      getAll('mp_rev_map?select=m,team,pname,item,src,updated_at&' + erpRange + '&order=m,team,pname')
+        .catch(function () { S.revMapReady = false; return []; }),
+      getAll('mp_rev_map_done?select=m,done_at,email&' + erpRange + '&order=m')
+        .catch(function () { return []; })
     ]).then(function (r) {
       S.periods = {}; r[0].forEach(function (p) { S.periods[p.m] = p; });
       /* NULL 은 «값 없음»이다. Number(null) 은 0 이라 그대로 쓰면 빈 칸이 0 이 되고,
@@ -129,6 +135,9 @@
       S.config = {}; r[8].forEach(function (x) { S.config[x.key] = x.val; });
       S.submit = {}; (r[9] || []).forEach(function (x) { x.team = teamIn(x.team); S.submit[key(x.m, x.team, x.k)] = x; });
       if (S.submitReady !== false) S.submitReady = true;
+      S.revMap = {}; (r[10] || []).forEach(function (x) { x.team = teamIn(x.team); S.revMap[key(x.m, x.team, x.pname)] = x; });
+      S.revDone = {}; (r[11] || []).forEach(function (x) { S.revDone[x.m] = x; });
+      if (S.revMapReady !== false) S.revMapReady = true;
       return S;
     });
   }
@@ -168,6 +177,136 @@
       if (t && out.byTeam[t]) out.byTeam[t].sga += a;
       else out.unassigned.sga += a;
       if (r.cat) out.sgaCat[r.cat] = (out.sgaCat[r.cat] || 0) + a;
+    });
+    return out;
+  }
+
+
+  /* ==========================================================================
+   * ERP 매출 프로젝트 ↔ 이동계획 매출 항목 매칭
+   *
+   * 판관비는 ERP 엑셀에 «이동계획» 열이 있어 비목이 따라온다.
+   * 매출에는 그 열이 없다 — 프로젝트명이 제품인지 유지보수인지는 사람만 안다.
+   *
+   * 달마다 따로 둔다. 키가 (m, team, pname) 이라 한 달을 고쳐도 다른 달은
+   * 애초에 다른 행이므로 건드려지지 않는다.
+   * 지난 달 매칭은 «새 달의 첫 값» 으로만 쓰고, 저장된 달을 소급해 고치지 않는다.
+   * ======================================================================== */
+
+  /** 그 달·팀·프로젝트의 매칭 행 (없으면 null) */
+  function revMapOf(m, team, pname) { return S.revMap[key(m, team, pname)] || null; }
+  /** 그 달·팀·프로젝트가 붙은 이동계획 항목 (없으면 null) */
+  function revItemOf(m, team, pname) { var r = revMapOf(m, team, pname); return r ? (r.item || null) : null; }
+
+  /**
+   * 지난 달의 매칭을 찾는다 — 같은 팀 · 같은 프로젝트명 중 m 보다 앞선 가장 최근 달.
+   * 추천값일 뿐이다. 이것으로 이미 저장된 달을 고치지 않는다.
+   */
+  function revSuggest(team, pname, beforeM) {
+    var best = null;
+    Object.keys(S.revMap).forEach(function (k) {
+      var r = S.revMap[k];
+      if (r.team !== team || r.pname !== pname || !r.item) return;
+      if (beforeM != null && r.m >= beforeM) return;
+      if (!best || r.m > best.m) best = r;
+    });
+    return best;
+  }
+
+  /** 그 달 ERP 매출에 실제로 있는 (팀, 프로젝트) 목록 — 금액이 큰 순 */
+  function revProjects(m, team) {
+    var rows = S.erpRev[m];
+    if (!rows) return [];
+    var by = {};
+    rows.forEach(function (r) {
+      var org6 = S.orgMap[r.team] || r.team;
+      var t = ORG2TEAM[org6] || org6;
+      if (team && team !== TOTAL && t !== team) return;
+      var nm = (r.pname || '').trim() || '(프로젝트명 없음)';
+      var k = t + '|' + nm;
+      var o = by[k] || (by[k] = { team: t, pname: nm, rev: 0, cost: 0, n: 0 });
+      o.rev += Number(r.amt) / 1e6;
+      o.cost += Number(r.cost || 0) / 1e6;
+      o.n++;
+    });
+    return Object.keys(by).map(function (k) {
+      var o = by[k];
+      var cur = revMapOf(m, o.team, o.pname);
+      o.item = cur ? (cur.item || null) : null;
+      o.src = cur ? (cur.src || null) : null;
+      o.updated_at = cur ? cur.updated_at : null;
+      var sug = o.item ? null : revSuggest(o.team, o.pname, m);
+      o.suggest = sug ? sug.item : null;
+      o.suggestM = sug ? sug.m : null;
+      return o;
+    }).sort(function (a, b) {
+      if (a.team !== b.team) return TEAMS.indexOf(a.team) - TEAMS.indexOf(b.team);
+      return b.rev - a.rev;
+    });
+  }
+
+  /** 한 자리의 매칭을 저장한다. item 이 비면 «아직 안 정함» 으로 되돌린다. */
+  function setRevItem(m, team, pname, item, srcTag) {
+    var before = revItemOf(m, team, pname);
+    var row = { m: m, team: team, pname: pname, item: item || null,
+                src: srcTag || 'manual', updated_at: new Date().toISOString() };
+    return send('mp_rev_map?on_conflict=m,team,pname', {
+      method: 'POST', headers: PREF, body: JSON.stringify([row])
+    }).then(function () {
+      S.revMap[key(m, team, pname)] = row;
+      /* 누가 · 언제 · 무엇을 · 어떻게 — 되돌아볼 수 있어야 고칠 용기가 난다 */
+      return audit('매출 매칭 변경', {
+        m: m, team: team, ref: pname,
+        before: before || '(없음)', after: item || '(없음)',
+        via: srcTag === 'auto' ? 'web:자동승계' : 'web'
+      });
+    });
+  }
+
+  /**
+   * 새로 올라온 달에 지난 달 매칭을 물려준다.
+   * 아직 아무 값도 없는 자리에만 넣는다 — 사람이 정한 값을 덮지 않는다.
+   * 되돌아보기 좋게 src='auto' 로 표시해 둔다.
+   */
+  function seedRevMap(m) {
+    var list = revProjects(m, null).filter(function (p) { return !p.item && p.suggest; });
+    if (!list.length) return Promise.resolve(0);
+    var rows = list.map(function (p) {
+      return { m: m, team: p.team, pname: p.pname, item: p.suggest,
+               src: 'auto', updated_at: new Date().toISOString() };
+    });
+    return send('mp_rev_map?on_conflict=m,team,pname', {
+      method: 'POST', headers: PREF, body: JSON.stringify(rows)
+    }).then(function () {
+      rows.forEach(function (r) { S.revMap[key(r.m, r.team, r.pname)] = r; });
+      return audit('매출 매칭 자동 승계', { m: m, ref: '지난 달 이력',
+        after: rows.length + '건', via: 'web:업로드' });
+    }).then(function () { return rows.length; });
+  }
+
+  /* ---------- 그 달 매칭 «작성 완료» ---------- */
+  function revDoneOf(m) { return S.revDone[m] || null; }
+  function setRevDone(m, on) {
+    if (!on) {
+      return sendOne('mp_rev_map_done?m=eq.' + m, { method: 'DELETE' })
+        .then(function () { delete S.revDone[m]; })
+        .then(function () { return audit('매출 매칭 완료 취소', { m: m, ref: '매칭', after: '취소' }); });
+    }
+    var me = MpAuth.me() || {};
+    var row = { m: m, done_at: new Date().toISOString(), done_by: me.id || null, email: me.email || null };
+    return send('mp_rev_map_done?on_conflict=m', {
+      method: 'POST', headers: PREF, body: JSON.stringify([row])
+    }).then(function () { S.revDone[m] = row; })
+      .then(function () { return audit('매출 매칭 완료', { m: m, ref: '매칭', after: '완료' }); });
+  }
+
+  /** 그 달·팀의 확정 매출·원가를 이동계획 항목별로 가른다. 매칭 안 된 것은 '(미매칭)' 으로 남는다. */
+  function revByItem(m, team) {
+    var out = { item: {}, unmapped: { rev: 0, cost: 0, n: 0 } };
+    revProjects(m, team).forEach(function (p) {
+      if (!p.item) { out.unmapped.rev += p.rev; out.unmapped.cost += p.cost; out.unmapped.n++; return; }
+      var o = out.item[p.item] || (out.item[p.item] = { rev: 0, cost: 0, n: 0 });
+      o.rev += p.rev; o.cost += p.cost; o.n++;
     });
     return out;
   }
@@ -488,6 +627,9 @@
     planVal: planVal, weekVal: weekVal, detailOf: detailOf, notesOf: notesOf,
     submitOf: submitOf, setSubmit: setSubmit, unsubmit: unsubmit,
     gpRate: gpRate,
+    revMapOf: revMapOf, revItemOf: revItemOf, revSuggest: revSuggest, revProjects: revProjects,
+    setRevItem: setRevItem, seedRevMap: seedRevMap,
+    revDoneOf: revDoneOf, setRevDone: setRevDone, revByItem: revByItem,
     teamName: function (t) { return TEAM_LABEL[t] || t; },
     erpMonths: function () { return Object.keys(S.erpMeta).map(Number).sort(function (a, b) { return a - b; }); }
   };

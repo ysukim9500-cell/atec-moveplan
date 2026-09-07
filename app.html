@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ATEC 이동계획</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20260914o">
+<link rel="stylesheet" href="styles.css?v=20260914p">
 </head>
 <body>
 
@@ -111,6 +111,19 @@
             <div class="tbl-wrap" style="max-height:none"><table class="t" id="tblPlan"></table></div>
           </div>
         </div>
+
+        <!-- ERP 매출 프로젝트 매칭 (관리자) -->
+        <div class="card hide" id="rmCard" style="margin-top:14px">
+          <div class="hd"><div><h3>ERP 매출 프로젝트 매칭</h3>
+            <div class="desc" id="rmDesc"></div></div>
+            <div class="toolbar">
+              <span class="chip" id="rmState">—</span>
+              <button class="btn sm ghost" id="btnRmSeed">지난 달 매칭 불러오기</button>
+              <button class="btn sm" id="btnRmDone">매칭 작성 완료</button>
+            </div></div>
+          <div class="bd" style="padding:0">
+            <div class="tbl-wrap" style="max-height:none"><table class="t" id="tblRevMap"></table></div>
+          </div></div>
       </section>
 
       <!-- ===== 주차별 변동 관리 ===== -->
@@ -384,18 +397,18 @@
   </div>
 </div>
 
-<script src="mp-auth.js?v=20260914o"></script>
-<script src="mp-data.js?v=20260914o"></script>
-<script src="mp-calc.js?v=20260914o"></script>
-<script src="mp-ui.js?v=20260914o"></script>
-<script src="mp-xlsx.js?v=20260914o"></script>
-<script src="mp-plan.js?v=20260914o"></script>
-<script src="mp-week.js?v=20260914o"></script>
-<script src="mp-admin.js?v=20260914o"></script>
-<script src="mp-import.js?v=20260914o"></script>
-<script src="mp-sga.js?v=20260914o"></script>
-<script src="mp-erp.js?v=20260914o"></script>
-<script src="mp-report.js?v=20260914o"></script>
+<script src="mp-auth.js?v=20260914p"></script>
+<script src="mp-data.js?v=20260914p"></script>
+<script src="mp-calc.js?v=20260914p"></script>
+<script src="mp-ui.js?v=20260914p"></script>
+<script src="mp-xlsx.js?v=20260914p"></script>
+<script src="mp-plan.js?v=20260914p"></script>
+<script src="mp-week.js?v=20260914p"></script>
+<script src="mp-admin.js?v=20260914p"></script>
+<script src="mp-import.js?v=20260914p"></script>
+<script src="mp-sga.js?v=20260914p"></script>
+<script src="mp-erp.js?v=20260914p"></script>
+<script src="mp-report.js?v=20260914p"></script>
 <script>
 (function () {
   'use strict';

@@ -1501,6 +1501,15 @@
         return D.load(2026);
       })
       .then(function () { return D.loadErp(m); })
+      /* 매출은 프로젝트명만 온다. 지난 달에 사람이 정해 둔 매칭이 있으면 물려준다 —
+         아직 빈 자리에만 넣으므로 사람이 정한 값을 덮지 않는다. */
+      .then(function () {
+        if (!rev) return 0;
+        return D.seedRevMap(m).then(function (nn) {
+          if (nn) upLog('지난 달 매칭 <b>' + nn + '</b>건을 물려받았습니다 — <b>월별 이동계획</b> 에서 확인하세요.', 'ok');
+          return nn;
+        }).catch(function () { return 0; });
+      })
       .then(function () {
         K.bust();
         upLog('<b>등록 완료</b> — 아래 대사표가 갱신되었습니다.', 'ok');

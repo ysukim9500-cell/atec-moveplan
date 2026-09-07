@@ -61,6 +61,7 @@
     /* 필터 */
     U.tabs($('#plMonth'), monthTabs(), m, function (v) {
       S.m = v; S.week = Math.max(0, K.finalK(v, S.team)); render();
+      D.loadErp(v).then(function (got) { if (got) { K.bust(); render(); } }).catch(function () {});
     });
     U.tabs($('#plTeam'), [{ id: D.TOTAL, label: '사업부 합계' }].concat(
       D.TEAMS.map(function (t) {
@@ -113,7 +114,130 @@
     renderSubmit();
     buildTable(m, team, nW);
     bind();
+    bindRevMap();
+    renderRevMap();
     watchFocus();
+  }
+
+
+  /* ==========================================================================
+   * ERP 매출 프로젝트 매칭 (관리자 전용)
+   *
+   * 판관비는 ERP 엑셀의 «이동계획» 열이 비목을 알려 준다. 매출에는 그 열이 없다.
+   * 프로젝트명이 제품인지 유지보수인지는 사람만 알기에, 여기서 사람이 정한다.
+   *
+   * 지난 달 매칭은 «첫 값» 으로만 쓴다 — 추천이지 규칙이 아니다.
+   * 그 달에서 고친 값은 그 달에만 남는다. 다른 달은 애초에 다른 행이다.
+   * ======================================================================== */
+  var REV_ITEMS = ['제품', '상품', '유지보수', '유상서비스', '공사', '영업수수료'];
+
+  function rmCanEdit() { return MpAuth.isAdmin() && !MpAuth.viewOnly(); }
+
+  function renderRevMap() {
+    var card = $('#rmCard');
+    var m = S.m, team = S.team;
+    /* 그 달 ERP 매출이 없으면 매칭할 것도 없다 */
+    var has = !!(D.S.erpMeta[m] && D.S.erpRev[m]);
+    card.classList.toggle('hide', !(has && rmCanEdit()));
+    if (!has || !rmCanEdit()) return;
+
+    if (D.S.revMapReady === false) {
+      $('#tblRevMap').innerHTML = '<tbody><tr><td class="txt">매칭을 저장할 표(mp_rev_map)가 아직 없습니다. ' +
+        'db/007_rev_map.sql 을 실행하면 정한 결과가 모두에게 남습니다.</td></tr></tbody>';
+      $('#rmDesc').textContent = '';
+      $('#rmState').className = 'chip warn'; $('#rmState').textContent = '표 없음';
+      $('#btnRmSeed').disabled = true; $('#btnRmDone').disabled = true;
+      return;
+    }
+    $('#btnRmSeed').disabled = false; $('#btnRmDone').disabled = false;
+
+    var list = D.revProjects(m, team === D.TOTAL ? null : team);
+    var done = D.revDoneOf(m);
+    var all = D.revProjects(m, null);
+    var left = all.filter(function (p) { return !p.item; }).length;
+
+    $('#rmDesc').innerHTML = 'ERP 매출은 프로젝트명만 있고 이동계획 항목이 없습니다 — ' +
+      '여기서 정한 것이 위 표의 <b>확정실적</b> 을 항목별로 가릅니다. ' +
+      '지난 달에 정한 것이 있으면 <b>추천</b> 으로 먼저 보여 주지만, ' +
+      '<b>이 달에서 고친 값은 이 달에만</b> 남습니다.';
+    $('#rmState').className = 'chip ' + (left ? 'warn' : 'ok');
+    $('#rmState').innerHTML = done
+      ? ('매칭 완료 · ' + esc(U.ymdhm(done.done_at)) + (done.email ? ' · ' + esc(done.email) : ''))
+      : (left ? ('남은 프로젝트 <b>' + left + '</b>건') : '전부 매칭됨 — 완료를 눌러 주세요');
+    $('#btnRmDone').textContent = done ? '매칭 완료 취소' : '매칭 작성 완료';
+    $('#btnRmDone').className = 'btn sm' + (done ? ' ghost' : '');
+
+    var h = '<colgroup><col style="width:132px"><col><col style="width:104px">' +
+      '<col style="width:104px"><col style="width:150px"><col style="width:190px"></colgroup>' +
+      '<thead><tr><th>팀</th><th>프로젝트</th><th class="n">확정 매출</th><th class="n">확정 원가</th>' +
+      '<th>이동계획 항목</th><th>근거</th></tr></thead><tbody>';
+    if (!list.length) {
+      h += '<tr><td colspan="6" class="txt q">이 달 이 팀의 ERP 매출이 없습니다.</td></tr>';
+    }
+    list.forEach(function (p, i) {
+      var val = p.item || '';
+      var opts = '<option value="">— 아직 안 정함 —</option>' + REV_ITEMS.map(function (it) {
+        return '<option value="' + esc(it) + '"' + (it === val ? ' selected' : '') + '>' + esc(it) + '</option>';
+      }).join('');
+      var why;
+      if (p.item && p.src === 'auto') why = '<span class="bdg">지난 달에서 자동</span>';
+      else if (p.item) why = '<span class="bdg new">사람이 정함</span>';
+      else if (p.suggest) why = '<span class="bdg pend">추천 : ' + esc(p.suggest) + '</span> ' +
+        '<span class="q">(' + D.moOf(p.suggestM) + '월)</span>';
+      else why = '<span class="q">참고할 이력 없음</span>';
+      h += '<tr class="' + (p.item ? '' : 'pend') + '"><td class="sec">' + esc(D.teamName(p.team)) + '</td>' +
+        '<td class="txt" title="' + esc(p.pname) + '">' + esc(p.pname) +
+          ' <span class="q">' + p.n + '건</span></td>' +
+        '<td class="n">' + fmt(p.rev) + '</td><td class="n">' + fmt(p.cost) + '</td>' +
+        '<td><select class="sel rmsel" data-i="' + i + '">' + opts + '</select></td>' +
+        '<td class="txt">' + why + '</td></tr>';
+    });
+    var sr = 0, sc = 0; list.forEach(function (p) { sr += p.rev; sc += p.cost; });
+    h += '<tr class="grand"><td>합 계</td><td class="q">' + list.length + '개 프로젝트</td>' +
+      '<td class="n">' + fmt(sr) + '</td><td class="n">' + fmt(sc) + '</td><td></td><td></td></tr>';
+    $('#tblRevMap').innerHTML = h + '</tbody>';
+
+    $$('#tblRevMap select.rmsel').forEach(function (sel) {
+      sel.onchange = function () {
+        var p = list[+this.dataset.i], v = this.value;
+        this.disabled = true;
+        D.setRevItem(m, p.team, p.pname, v || null)
+          .then(function () { K.bust(); flash('저장됨'); render(); })
+          .catch(fail);
+      };
+    });
+  }
+
+  function bindRevMap() {
+    if (bindRevMap.done) return;
+    bindRevMap.done = true;
+    $('#btnRmSeed').onclick = function () {
+      var m = S.m;
+      U.ask(D.moOf(m) + '월 · 지난 달 매칭 불러오기',
+        '아직 정하지 않은 프로젝트만 채웁니다.\n' +
+        '이미 정해 둔 값은 그대로 둡니다 — 사람이 정한 것을 덮지 않습니다.', '불러오기')
+        .then(function (ok) {
+          if (!ok) return;
+          return D.seedRevMap(m).then(function (nn) {
+            K.bust(); flash(nn ? (nn + '건을 불러왔습니다') : '불러올 이력이 없습니다'); render();
+          }).catch(fail);
+        });
+    };
+    $('#btnRmDone').onclick = function () {
+      var m = S.m, done = D.revDoneOf(m);
+      var left = D.revProjects(m, null).filter(function (p) { return !p.item; }).length;
+      if (done) {
+        U.ask(D.moOf(m) + '월 매칭 완료 취소', '완료 표시만 지웁니다. 매칭 값은 그대로 남습니다.', '취소하기', true)
+          .then(function (ok) { if (ok) D.setRevDone(m, false).then(function () { flash('완료를 취소했습니다'); render(); }).catch(fail); });
+        return;
+      }
+      U.ask(D.moOf(m) + '월 매칭 작성 완료',
+        (left ? ('아직 정하지 않은 프로젝트가 ' + left + '건 있습니다.\n그 금액은 항목별 확정실적에 들어가지 않습니다.\n\n') : '') +
+        '완료로 표시하면 다음 달 업로드 때 이 달 매칭을 물려받습니다.', '작성 완료')
+        .then(function (ok) {
+          if (ok) D.setRevDone(m, true).then(function () { flash('매칭을 완료했습니다'); render(); }).catch(fail);
+        });
+    };
   }
 
   function monthTabs() {
@@ -307,8 +431,9 @@
       return '<td class="n actc"><span class="zero">–</span></td><td class="n actc"><span class="zero">–</span></td>' +
         '<td class="actc"><span class="zero">ERP 미마감</span></td>';
     }
-    /* 항목 단위 확정치는 매출·매출원가 합계와 판관비 합계에서만 근거가 있다 */
-    var a = K.act(m, team), av = null;
+    /* 판관비 비목은 ERP 엑셀의 «이동계획» 열이 알려 준다.
+       매출·매출원가 항목은 근거가 없어, 관리자가 아래 카드에서 정해 준 매칭을 쓴다. */
+    var a = K.act(m, team), av = null, mapped = false;
     if (a) {
       if (sec === '매출' && item === '합계') av = a.rev;
       else if (sec === '매출원가' && item === '합계') av = a.cost;
@@ -317,17 +442,24 @@
       else if (sec === '영업이익') av = a.op;
       else if (sec === '공판') av = a.gongpan;
       else if (sec === '공판후영업이익') av = a.op2;
+      else if ((sec === '매출' || sec === '매출원가') && ITEM2GRP[item] && team !== D.TOTAL) {
+        var bi = D.revByItem(m, team).item[item];
+        if (bi) { av = Math.round((sec === '매출' ? bi.rev : bi.cost) * 10000) / 10000; mapped = true; }
+      }
     }
     if (av == null) {
+      var why = (sec === '매출' || sec === '매출원가') && ITEM2GRP[item] && team !== D.TOTAL
+        ? '매칭된 프로젝트 없음' : 'ERP에 항목 구분 근거 없음';
       return '<td class="n actc"><span class="zero">–</span></td><td class="n actc"><span class="zero">–</span></td>' +
-        '<td class="actc"><span class="zero">ERP에 항목 구분 근거 없음</span></td>';
+        '<td class="actc"><span class="zero">' + why + '</span></td>';
     }
     var ov = K.OL(m, team, sec, item);
     var d = ov == null ? null : Math.round((av - ov) * 10000) / 10000;
     var n = D.findNote('erpdiff', m, team, sec, item, null);
     var body = n ? n.body : '';
     var canNote = MpAuth.canWriteTeam(team) && team !== D.TOTAL;
-    return '<td class="n actc gs"><b>' + fmt(av) + '</b></td>' +
+    return '<td class="n actc gs"><b>' + fmt(av) + '</b>' +
+      (mapped ? ' <span class="bdg" title="관리자가 정한 프로젝트 매칭에서 나온 값">매칭</span>' : '') + '</td>' +
       '<td class="n actc ' + dcls(d) + '">' + sgn(d) + '</td>' +
       '<td class="actc txt">' + (canNote
         ? '<textarea rows="1" class="na" data-en="' + esc([sec, item].join('~')) + '" placeholder="차이 사유">' + esc(body) + '</textarea>'
@@ -616,6 +748,8 @@
       if (S.m == null) S.m = D.mOf(2026, 9);
       S.week = Math.max(0, K.finalK(S.m, S.team));
       render();
+      /* ERP 명세는 월 단위로 따로 읽는다. 도착하면 매칭 카드와 항목별 확정실적이 채워진다. */
+      D.loadErp(S.m).then(function (got) { if (got) { K.bust(); render(); } }).catch(function () {});
     },
     render: render
   };

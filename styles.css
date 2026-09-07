@@ -890,3 +890,14 @@ td.plancol{background:var(--band-plan);color:var(--muted);font-weight:400}
 .askf{display:flex;justify-content:flex-end;gap:8px;padding:11px 18px 14px;
   border-top:1px solid var(--rule2);background:var(--soft)}
 .askf .btn{min-width:78px;justify-content:center}
+
+/* ERP 매출 프로젝트 매칭 */
+#tblRevMap{table-layout:fixed;width:100%;min-width:940px}
+#tblRevMap td.txt{white-space:normal;word-break:break-all}
+#tblRevMap select.sel{width:100%;font-size:12px;padding:5px 7px;border:1px solid var(--rule);
+  border-radius:6px;background:var(--paper);font-weight:700}
+#tblRevMap select.sel:focus{border-color:var(--red);outline:none;box-shadow:0 0 0 2px rgba(153,0,51,.14)}
+#tblRevMap tr.pend td{background:#FFFCF2}
+#tblRevMap tr.pend select.sel{border-color:var(--amber-line)}
+#tblRevMap td.sec{font-weight:700}
+#rmCard .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}
