@@ -931,3 +931,15 @@ td.plancol{background:var(--band-plan);color:var(--muted);font-weight:400}
 .bd-t.no .bd-d{background:transparent;border:2px solid var(--g2)}
 .bd-t.no .bd-s{color:var(--muted)}
 @media (max-width:760px){ .bd-t{padding:5px 10px 5px 6px;font-size:11.5px} }
+
+/* ============================================================
+   레일 로고
+   레일이 어두운 바탕(#333B41)이라 로고의 회색 «에이텍모빌리티» 가 묻힌다.
+   로고 색을 고치지 않고 흰 판 위에 올린다 — 지급받은 로고를 그대로 쓴다.
+   ============================================================ */
+.rail .brand{padding:14px 16px 13px;border-bottom:1px solid rgba(255,255,255,.09)}
+.rail .brand img{
+  display:block;width:100%;max-width:186px;height:auto;
+  background:#fff;border-radius:6px;padding:9px 11px;
+  box-shadow:0 1px 0 rgba(0,0,0,.18)
+}
