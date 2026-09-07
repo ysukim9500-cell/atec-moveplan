@@ -742,6 +742,60 @@
   }
 
 
+  /* ---------- 적요 상세표 (v20 descTableO) ----------
+     전월 · 당월 · 증감 · 구분(기존/신규/당월없음/확인필요)을 한 줄에 놓는다.
+     맨 아래에 표시 건수와 숨긴 건수를 적어, 지금 보는 것이 전부가 아님을 밝힌다. */
+  function descTable(fl, hasPrev, cap) {
+    var list = fl.rows;
+    if (!list.length) {
+      return '<div class="hint" style="padding:9px 12px">표시 기준 이상의 적요가 없습니다.' +
+        (fl.hidN ? ' — 기준 미만 ' + fmt0(fl.hidN) + '건(합계 ' + us(fl.hidSum / 1e6) +
+          ') 숨김. 기준을 낮추거나 <b>전체 보기</b>를 누르세요.' : '') + '</div>';
+    }
+    cap = cap || 300;
+    var show = list.slice(0, cap), sc = 0, sp = 0;
+    var h = '<table class="t sub descT"><colgroup><col><col class="d-acct"><col class="d-n">' +
+      '<col class="d-n"><col class="d-n"><col class="d-tag"></colgroup>' +
+      '<thead><tr><th>적요</th><th>계정명</th><th class="n prevcol">전월</th>' +
+      '<th class="n curcol">당월</th><th class="n">증감</th><th class="c">구분</th></tr></thead><tbody>';
+    show.forEach(function (r) {
+      sc += r.c; sp += (r.p || 0);
+      var tag = r.pend ? '<span class="bdg pend" title="' + esc(r.note || '') + '">확인 필요</span>'
+        : r.neu ? '<span class="bdg new">신규</span>'
+        : r.gone ? '<span class="bdg gone">당월 없음</span>'
+        : (r.merged ? '<span class="bdg">합치기 확정</span>' : '<span class="q">기존</span>');
+      var lbl;
+      if (r.pend) {
+        if (r.prevDesc && r.currDesc)
+          lbl = '<div>' + esc(G.prettyDesc(r.prevDesc, r.prevRaw)) + '</div>' +
+                '<div class="q2">↳ 당월 후보 : ' + esc(G.prettyDesc(r.currDesc, r.currRaw)) + '</div>';
+        else if (r.prevDesc)
+          lbl = '<div>' + esc(G.prettyDesc(r.prevDesc, r.prevRaw)) + '</div><div class="q2">↳ 당월 유사 후보 다수</div>';
+        else
+          lbl = '<div>' + esc(G.prettyDesc(r.currDesc, r.currRaw)) + '</div><div class="q2">↳ 전월 유사 후보 다수</div>';
+      } else lbl = descHtml(r);
+      h += '<tr class="' + (r.pend ? 'pend' : (r.gone ? 'gone' : '')) + '"><td class="txt">' + lbl + '</td>' +
+        '<td class="txt q">' + esc(G.acctLabel(r.acct)) + '</td>' +
+        '<td class="n prevcol">' + (hasPrev ? uf(r.p / 1e6) : '–') + '</td>' +
+        '<td class="n curcol">' + uf(r.c / 1e6) + '</td>' +
+        '<td class="n delta ' + (hasPrev ? dcls(r.v) : 'flat') + '">' + (hasPrev ? us(r.v / 1e6) : '–') + '</td>' +
+        '<td class="c">' + tag + '</td></tr>';
+    });
+    h += '</tbody></table><div class="dsum"><span>표시 ' + fmt0(show.length) + '건 · 전월 <b>' +
+      (hasPrev ? uf(sp / 1e6) : '–') + '</b> → 당월 <b>' + uf(sc / 1e6) + '</b>' +
+      (hasPrev ? ' · 증감 <b>' + us((sc - sp) / 1e6) + '</b>' : '') + '</span>';
+    if (fl.hidN) h += '<span>기준 미만 숨김 ' + fmt0(fl.hidN) + '건 · ' + us(fl.hidSum / 1e6) + '</span>';
+    if (list.length > cap) h += '<span>외 ' + fmt0(list.length - cap) + '건 — 변동액 큰 순 ' + cap + '건까지</span>';
+    return h + '</div>';
+  }
+
+  /** 같은 카테고리는 공통 앞부분을 굵게 — 비슷한 적요가 줄줄이 있을 때 눈이 덜 미끄러진다 */
+  function descHtml(o) {
+    var t = G.prettyDesc(o.desc, o.raw), c = G.descCat(t);
+    if (c && c !== t && t.indexOf(c) === 0) return '<b>' + esc(c) + '</b>' + esc(t.slice(c.length));
+    return esc(t);
+  }
+
   function renderSgaDetail(m, cur, prv, hasPrev) {
     var card = $('#sgaDetailCard');
     $('#btnSgaFold').textContent = S.fold ? '펼치기' : '접기';
