@@ -20,20 +20,33 @@
 
   function r4(v) { return Math.round(v * 10000) / 10000; }
 
-  /* 그 달의 최종 OL 주차.
-     확정된 달은 확정 주차를, 아니면 마지막으로 기입된 주차를 쓴다. */
+  /**
+   * 그 달 그 팀의 최종 OL 주차.
+   *
+   * 확정된 달의 final_k 는 «여기까지만 인정한다»는 상한이지, 모든 팀이 그 주차를
+   * 썼다는 뜻이 아니다. 상한을 그대로 돌려주면 일찍 끝낸 팀은 그 주차가 비어 있어
+   * 값이 통째로 사라진다. 그래서 상한 안에서 그 팀이 마지막으로 쓴 주차를 찾는다.
+   */
   function finalK(m, team) {
     var p = D.periodOf(m);
-    if (p.final_k != null) return p.final_k;
     var ck = 'FK|' + m + '|' + team;
     if (ck in CACHE) return CACHE[ck];
-    var idx = -1, n = D.weeksOf(m);
-    for (var k = 0; k < n; k++) {
+    var nW = D.weeksOf(m);
+    var cap = (p.final_k != null) ? Math.min(p.final_k, nW - 1) : nW - 1;
+    var idx = -1;
+    for (var k = 0; k <= cap; k++) {
       if (V(m, team, '매출', '합계', k) != null ||
           V(m, team, '판관비', '합계', k) != null ||
           V(m, team, '매출원가', '합계', k) != null) idx = k;
     }
     CACHE[ck] = idx;
+    return idx;
+  }
+
+  /** 그 달에 «누군가 마지막으로 쓴» 주차. 월을 확정할 때 상한으로 쓴다. */
+  function lastFilledK(m) {
+    var idx = -1;
+    D.TEAMS.forEach(function (t) { var k = finalK(m, t); if (k > idx) idx = k; });
     return idx;
   }
 
@@ -112,7 +125,25 @@
   }
 
   function PL(m, team, sec, item) { return V(m, team, sec, item, null); }
+  /**
+   * 최종 OL.
+   *
+   * 사업부합계는 한 주차에서 6팀을 더하면 안 된다. 팀마다 마지막 주차가 다르므로
+   * 그 주차를 안 쓴 팀이 통째로 빠져 «사업부합계 ≠ 6팀 합» 이 된다.
+   * 각 팀의 최종 OL 을 더한다.
+   */
   function OL(m, team, sec, item) {
+    if (team === D.TOTAL) {
+      var ck = 'OLT|' + m + '|' + sec + '|' + item;
+      if (ck in CACHE) return CACHE[ck];
+      var any = false, s = 0;
+      D.TEAMS.forEach(function (t) {
+        var v = OL(m, t, sec, item);
+        if (v != null) { s += v; any = true; }
+      });
+      CACHE[ck] = any ? r4(s) : null;
+      return CACHE[ck];
+    }
     var k = finalK(m, team);
     return k < 0 ? null : V(m, team, sec, item, k);
   }
@@ -196,7 +227,7 @@
 
   global.MpCalc = {
     bust: bust, V: V, PL: PL, OL: OL, cum: cum,
-    finalK: finalK, filledWeeks: filledWeeks, prevWeek: prevWeek, isLeaf: isLeaf,
+    finalK: finalK, lastFilledK: lastFilledK, filledWeeks: filledWeeks, prevWeek: prevWeek, isLeaf: isLeaf,
     metrics: metrics, sumMetrics: sumMetrics, act: act, blend: blend
   };
 })(window);

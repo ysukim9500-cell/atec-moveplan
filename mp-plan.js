@@ -113,6 +113,7 @@
     renderSubmit();
     buildTable(m, team, nW);
     bind();
+    watchFocus();
   }
 
   function monthTabs() {
@@ -347,6 +348,35 @@
   }
   function fail(e) { flash(e.message || '저장 실패', true); render(); }
 
+  /**
+   * 저장이 끝났을 때의 다시 그리기.
+   *
+   * 표를 innerHTML 로 통째로 갈아 끼우므로, 그 순간 다른 칸에 타이핑 중이면
+   * 그 값이 저장도 화면 표시도 없이 사라진다. 빠르게 채우는 사람일수록 자주 겪는다.
+   * 그래서 표 안에 포커스가 있으면 미뤘다가, 표를 벗어날 때 그린다.
+   */
+  var pending = false;
+  function renderSoon() {
+    var t = $('#tblPlan'), a = document.activeElement;
+    if (t && a && a !== document.body && t.contains(a)) { pending = true; return; }
+    pending = false;
+    render();
+  }
+  /* 표 밖으로 포커스가 나가면 밀어 둔 그리기를 처리한다 */
+  function watchFocus() {
+    if (watchFocus.done) return;
+    watchFocus.done = true;
+    document.addEventListener('focusout', function () {
+      setTimeout(function () {
+        if (!pending) return;
+        var t = $('#tblPlan'), a = document.activeElement;
+        if (t && a && a !== document.body && t.contains(a)) return;   /* 아직 표 안이다 */
+        pending = false;
+        render();
+      }, 0);
+    });
+  }
+
   /* ==========================================================================
    * 작성 완료 (제출)
    *
@@ -452,8 +482,19 @@
 
   /* 상세를 고치면 그 항목의 기준 주차 값도 소계로 맞춘다 */
   function syncSub(sec, item) {
-    var sub = subtotal(sec, item);
-    return D.setWeek(S.m, S.team, sec, item, S.week, sub);
+    return syncAt(S.m, S.team, S.week, sec, item);
+  }
+  /**
+   * 어느 달·팀·주차에 쓸지를 «부를 때» 정한다.
+   * 응답을 기다리는 동안 사용자가 탭을 바꿀 수 있는데, 그때 S.m/S.team/S.week 를
+   * 다시 읽으면 방금 고친 곳이 아니라 지금 보고 있는 곳에 쓴다.
+   */
+  function syncAt(m, team, wk, sec, item) {
+    var save = { m: S.m, t: S.team, w: S.week };
+    S.m = m; S.team = team; S.week = wk;
+    var sub = subtotal(sec, item);                 /* kidsOf 가 S 를 본다 */
+    S.m = save.m; S.team = save.t; S.week = save.w;
+    return D.setWeek(m, team, sec, item, wk, sub);
   }
 
   function bind() {
@@ -474,10 +515,13 @@
           var d = null; D.S.detail.forEach(function (x) { if (x.id === c[0]) d = x; });
           if (!d) return;
           var patch = {}; patch[c[1]] = r.v;
-          p = D.patchDetail(c[0], patch).then(function () { return syncSub(secOfGrp(d.grp, c[1]), itemOfGrp(d.grp)); });
+          var pm = S.m, pt = S.team, pw = S.week;
+          p = D.patchDetail(c[0], patch).then(function () {
+            return syncAt(pm, pt, pw, secOfGrp(d.grp, c[1]), itemOfGrp(d.grp));
+          });
         }
         if (!p) return;
-        p.then(function () { K.bust(); flash('저장됨'); render(); }).catch(fail);
+        p.then(function () { K.bust(); flash('저장됨'); renderSoon(); }).catch(fail);
       };
       el.onkeydown = function (e) {
         if (e.key === 'Escape') { render(); return; }
@@ -528,9 +572,15 @@
         if (!d) return;
         if (!window.confirm('「' + d.item + '」 항목을 삭제합니다.\n입력한 금액과 변동 내용이 함께 지워지고 소계가 다시 계산됩니다.')) return;
         var sec = secOfGrp(d.grp, 'rev'), item = itemOfGrp(d.grp);
+        /* 지우는 행이 원가를 갖고 있었거나, 남은 상세 중 원가를 가진 것이 있을 때만
+           매출원가 소계를 다시 쓴다. 그렇지 않으면 상세와 무관하게 손으로 넣어 둔
+           매출원가 주차 값을 지워 버린다. */
+        var hadCost = (d.cost != null) ||
+          kidsOf(sec, item).some(function (x) { return x.id !== id && x.cost != null; });
+        var m = S.m, team = S.team, wk = S.week;   /* 응답이 온 뒤에 읽으면 다른 주차를 쓴다 */
         D.delDetail(id)
-          .then(function () { return syncSub(sec, item); })
-          .then(function () { return syncSub('매출원가', item); })
+          .then(function () { return syncAt(m, team, wk, sec, item); })
+          .then(function () { return hadCost ? syncAt(m, team, wk, '매출원가', item) : null; })
           .then(function () { K.bust(); flash('삭제했습니다'); render(); })
           .catch(fail);
       };

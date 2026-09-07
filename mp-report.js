@@ -194,6 +194,19 @@
         '<td class="n">' + (b.rev ? pct(b.gp / b.rev) : '–') + '</td>' +
         '<td class="n">' + fmt(b.sga) + '</td><td class="n">' + fmt(b.op2) + '</td></tr>';
     });
+    /* ERP 에서 어느 팀에도 붙지 않은 금액. 이 줄이 없으면 팀 합과 사업부 합계가 어긋난다. */
+    var un = { rev: 0, cost: 0, sga: 0 };
+    ms.forEach(function (m) {
+      var ag = D.erpAgg(m);
+      if (ag && ag.unassigned) { un.rev += ag.unassigned.rev; un.sga += ag.unassigned.sga; }
+    });
+    if (Math.abs(un.rev) >= 0.05 || Math.abs(un.sga) >= 0.05) {
+      t.rev += un.rev; t.sga += un.sga;
+      h += '<tr><td>미배분 <span class="bdg">조직 매핑 없음</span></td>' +
+        '<td class="n gs">–</td><td class="n"><b>' + fmt(un.rev) + '</b></td>' +
+        '<td class="n">–</td><td class="n">–</td><td class="n">–</td>' +
+        '<td class="n">' + fmt(un.sga) + '</td><td class="n">–</td></tr>';
+    }
     h += '<tr class="grand"><td>사업부 합계</td><td class="n gs">' + fmt(t.pv) + '</td>' +
       '<td class="n"><b>' + fmt(t.rev) + '</b></td>' +
       '<td class="n">' + ratio(t.rev, t.pv) + '</td>' +

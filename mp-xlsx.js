@@ -124,11 +124,13 @@
 
   /** 한 달 시트 */
   function monthSheet(m) {
-    var k = K.finalK(m, D.TEAMS[0]);
+    var k = K.lastFilledK(m);
     if (k < 0) k = 0;
     var mo = D.moOf(m);
     var aoa = [];
-    aoa.push([mo, '개발비', r2(K.PL(m, D.TOTAL, '매출이익', '개발비'))]);
+    /* 원본 1행의 개발비(−75)는 팀 개발비 합이 그만큼 모자란다는 표시였다.
+       근거를 알 수 없는 값을 채워 넣지 않는다. 월 번호만 남긴다. */
+    aoa.push([mo]);
     aoa.push([]);
     var end = block(aoa, 2, m, D.TOTAL, k, '고객지원사업부 ' + mo + '월 이동계획');
     /* 원본은 사업부 블록 뒤에 5행을 비우고(간격 41) 팀부터는 38행 간격이다.
@@ -160,7 +162,7 @@
     var out = [];
     for (var mo = 1; mo <= 12; mo++) {
       var m = D.mOf(2026, mo);
-      if (K.finalK(m, D.TEAMS[0]) >= 0 || K.PL(m, D.TOTAL, '매출', '합계') != null) out.push(m);
+      if (K.lastFilledK(m) >= 0 || K.PL(m, D.TOTAL, '매출', '합계') != null) out.push(m);
     }
     return out;
   }

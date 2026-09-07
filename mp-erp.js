@@ -245,7 +245,7 @@
 
   function renderRecon(m) {
     var a = K.act(m, D.TOTAL), o = K.metrics(m, D.TOTAL, 'ol'), p = K.metrics(m, D.TOTAL, 'plan');
-    var fk = K.finalK(m, D.TEAMS[0]);
+    var fk = K.lastFilledK(m);
     $('#erpSub').textContent = '최종 OL = ' + (fk >= 0 ? (fk + 1) + '주' : '미기입') +
       ' · 개발비는 ERP 에 없어 최종 OL 값을 그대로 씁니다';
 
@@ -775,7 +775,7 @@
         '판관비만 올라온 상태는 그 달의 마감이 끝난 것이 아닙니다.';
       return;
     }
-    var meta = D.S.erpMeta[m], fk = K.finalK(m, D.TEAMS[0]);
+    var meta = D.S.erpMeta[m], fk = K.lastFilledK(m);
     box.className = 'note warn';
     box.innerHTML = '<b>' + D.moOf(m) + '월 ERP 확정본이 모두 등록되었습니다</b> — 매출 ' + meta.rev_cnt +
       '건 / 판관비 ' + meta.sga_cnt + '건. 최종 OL 은 ' + (fk >= 0 ? (fk + 1) + '주' : '미기입') + '입니다. ' +
@@ -784,7 +784,7 @@
     $('#btnErpClose').onclick = function () { closeMonth(m); };
   }
   function closeMonth(m) {
-    var k = K.finalK(m, D.TEAMS[0]);
+    var k = K.lastFilledK(m);
     var use = k >= 0 ? k : (D.weeksOf(m) - 1);
     var meta = D.S.erpMeta[m], before = D.stateOf(m);
     if (!window.confirm(
@@ -971,14 +971,25 @@
     var rev = UP.rev ? UP.rev.rows.map(function (r) { var o = {}; for (var k in r) o[k] = r[k]; o.m = m; return o; }) : null;
     var sga = UP.sga ? UP.sga.rows.map(function (r) { var o = {}; for (var k in r) o[k] = r[k]; o.m = m; return o; }) : null;
 
+    /* 먼저 지우고 넣으면, 중간에 끊겼을 때 그 달 원장이 반쯤 사라진 채 남는다.
+       트랜잭션이 없으므로 순서를 뒤집는다 — 새 행을 다 넣은 뒤에 옛 행을 지운다.
+       구분은 id 로 한다. 넣기 전 최대 id 이하가 옛 행이다. */
+    var maxRev = 0, maxSga = 0;
     Promise.resolve()
-      .then(function () { return rev ? del('mp_erp_rev?m=eq.' + m).then(function () { return post('mp_erp_rev', rev); }) : 0; })
+      .then(function () { return rev ? lastId('mp_erp_rev', m) : 0; })
+      .then(function (x) { maxRev = x; return sga ? lastId('mp_erp_sga', m) : 0; })
+      .then(function (x) { maxSga = x; return rev ? post('mp_erp_rev', rev) : 0; })
       .then(function (n) {
         if (rev) upLog('매출현황 <b>' + n + '</b>건 등록', 'ok');
-        return sga ? del('mp_erp_sga?m=eq.' + m).then(function () { return post('mp_erp_sga', sga); }) : 0;
+        return sga ? post('mp_erp_sga', sga) : 0;
       })
       .then(function (n) {
         if (sga) upLog('판관비 <b>' + n + '</b>건 등록', 'ok');
+        /* 새 행이 다 들어갔다. 이제 옛 행을 지운다. */
+        return rev ? del('mp_erp_rev?m=eq.' + m + '&id=lte.' + maxRev) : null;
+      })
+      .then(function () { return sga ? del('mp_erp_sga?m=eq.' + m + '&id=lte.' + maxSga) : null; })
+      .then(function () {
         var ex = D.S.erpMeta[m] || { rev_cnt: 0, sga_cnt: 0 };
         return post('mp_erp_meta', [{ m: m,
           rev_cnt: rev ? rev.length : ex.rev_cnt,
@@ -1004,9 +1015,32 @@
         render();
       })
       .catch(function (e) {
+        /* 실패했으면 방금 넣은 새 행을 걷어내고 옛 원장을 그대로 둔다.
+           그리고 화면이 옛 숫자를 «성공한 것처럼» 계속 보여 주지 않게 다시 읽는다. */
         upLog('실패 — ' + esc(e.message), 'er');
-        b.disabled = false; b.textContent = '다시 시도';
+        upLog('넣다 만 행을 걷어내는 중…', 'wn');
+        var undo = Promise.resolve();
+        if (rev) undo = undo.then(function () { return del('mp_erp_rev?m=eq.' + m + '&id=gt.' + maxRev); });
+        if (sga) undo = undo.then(function () { return del('mp_erp_sga?m=eq.' + m + '&id=gt.' + maxSga); });
+        undo.then(function () { upLog('원래 상태로 되돌렸습니다. 그 달 확정본은 그대로입니다.', 'ok'); })
+          .catch(function (e2) {
+            upLog('되돌리기도 실패했습니다 — ' + esc(e2.message) + '. 이 달을 다시 올려 주세요.', 'er');
+          })
+          .then(function () {
+            delete D.S.erpRev[m]; delete D.S.erpSga[m];
+            return D.load(2026).then(function () { return D.loadErp(m); });
+          })
+          .then(function () { K.bust(); render(); })
+          .catch(function () {})
+          .then(function () { b.disabled = false; b.textContent = '다시 시도'; });
       });
+  }
+
+  /** 그 달 그 표의 마지막 id. 넣기 전에 재 두면 «옛 행» 과 «새 행» 을 가를 수 있다. */
+  function lastId(table, m) {
+    return MpAuth.rest(table + '?select=id&m=eq.' + m + '&order=id.desc&limit=1')
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (rows) { return (rows[0] && rows[0].id) || 0; });
   }
 
   function bindUpload() {

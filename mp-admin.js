@@ -110,9 +110,10 @@
       return;
     }
     if (what === 'final') {
-      var k = K.finalK(m, D.TEAMS[0]);
-      var last = D.weeksOf(m) - 1;
-      var use = k >= 0 ? k : last;
+      /* 한 팀만 보면 그 팀이 일찍 끝냈을 때 다른 팀의 뒷주차가 통째로 잘린다.
+         전 팀 중 마지막으로 쓴 주차를 상한으로 삼는다. */
+      var k = K.lastFilledK(m);
+      var use = k >= 0 ? k : (D.weeksOf(m) - 1);
       if (!window.confirm(
         mo + '월을 최종확정합니다.\n\n' +
         '최종 OL = ' + (use + 1) + '주\n\n' +
@@ -126,7 +127,8 @@
     if (what === 'unlock') {
       var why = (window.prompt(mo + '월 확정을 해제합니다.\n사유를 적어 주세요. 변경 이력에 남습니다.', '') || '').trim();
       if (!why) { flash('사유가 없어 해제하지 않았습니다', true); return; }
-      D.setPeriod(m, { state: 'open', unlock_reason: why })
+      /* final_k 를 남겨 두면 해제한 뒤 새로 쓴 주차가 계속 무시된다 */
+      D.setPeriod(m, { state: 'open', final_k: null, final_src: null, unlock_reason: why })
         .then(function () { return D.audit('확정 해제', { m: m, ref: '월 상태', before: '최종확정', after: '작성 가능', via: 'web:' + why }); })
         .then(function () { K.bust(); flash(mo + '월 확정을 해제했습니다'); render(); }).catch(fail);
     }

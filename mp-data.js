@@ -112,7 +112,10 @@
   /** ERP 확정 집계 — 백만원 단위로 돌려준다 */
   function erpAgg(m) {
     if (!S.erpRev[m] || !S.erpSga[m]) return null;
-    var out = { rev: 0, cost: 0, sga: 0, byTeam: {}, sgaCat: {} };
+    /* unassigned : 조직 매핑이 없어 어느 팀에도 붙지 않은 금액.
+       사업부합계에는 들어 있으므로 이걸 따로 보여 줘야 «6팀 합 + 미배분 = 사업부합계» 가 된다. */
+    var out = { rev: 0, cost: 0, sga: 0, byTeam: {}, sgaCat: {},
+                unassigned: { rev: 0, cost: 0, sga: 0 } };
     TEAMS.forEach(function (t) { out.byTeam[t] = { rev: 0, cost: 0, sga: 0 }; });
 
     S.erpRev[m].forEach(function (r) {
@@ -120,6 +123,7 @@
       var a = Number(r.amt) / 1e6, c = Number(r.cost || 0) / 1e6;
       out.rev += a; out.cost += c;
       if (out.byTeam[t]) { out.byTeam[t].rev += a; out.byTeam[t].cost += c; }
+      else { out.unassigned.rev += a; out.unassigned.cost += c; }
     });
     S.erpSga[m].forEach(function (r) {
       var org6 = S.orgMap[r.mg] || S.orgMap[r.team_raw] || null;
@@ -127,6 +131,7 @@
       var a = Number(r.amt) / 1e6;
       out.sga += a;
       if (t && out.byTeam[t]) out.byTeam[t].sga += a;
+      else out.unassigned.sga += a;
       if (r.cat) out.sgaCat[r.cat] = (out.sgaCat[r.cat] || 0) + a;
     });
     return out;
