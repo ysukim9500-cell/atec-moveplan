@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ATEC 이동계획 · 로그인</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23D70051'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20260911a">
+<link rel="stylesheet" href="styles.css?v=20260914y">
 </head>
 <body>
 
@@ -56,6 +56,11 @@
             <label for="suPw">비밀번호</label>
             <input id="suPw" type="password" autocomplete="new-password" minlength="8" required>
             <div class="hint">8자 이상. 재무 자료를 다루므로 사내 다른 서비스와 다른 비밀번호를 쓰시길 권합니다.</div>
+          </div>
+          <div class="fld">
+            <label for="suPw2">비밀번호 확인</label>
+            <input id="suPw2" type="password" autocomplete="new-password" minlength="8" required>
+            <div class="hint" id="suPwMsg">한 번 더 입력해 주세요. 오타로 못 들어오는 일을 막습니다.</div>
           </div>
           <button type="submit" class="btn red wide" id="btnSignup">가입 신청</button>
           <div class="note info" style="margin:14px 0 0">
@@ -156,6 +161,13 @@
   $('#formSignup').onsubmit = function (e) {
     e.preventDefault();
     var b = $('#btnSignup');
+    /* 서버에 보내기 전에 여기서 막는다. 가입은 되었는데 비밀번호를 모르는 상태가
+       가장 나쁘다 — 승인까지 받은 뒤에야 알게 된다. */
+    if ($('#suPw').value !== $('#suPw2').value) {
+      say('#msg', '비밀번호가 서로 다릅니다. 두 칸을 같게 입력해 주세요.');
+      $('#suPw2').focus(); $('#suPw2').select();
+      return;
+    }
     busy(b, true);
     MpAuth.signup($('#suEmail').value, $('#suPw').value, $('#suName').value)
       .then(function (r) {
@@ -165,6 +177,17 @@
         $('#formSignup').reset();
       });
   };
+
+  /* 두 칸이 같아지는 순간 초록으로 바뀐다. 제출을 눌러 봐야 아는 것보다 낫다. */
+  function pwEcho() {
+    var a = $('#suPw').value, c = $('#suPw2').value, m = $('#suPwMsg');
+    if (!c) { m.className = 'hint'; m.textContent = '한 번 더 입력해 주세요. 오타로 못 들어오는 일을 막습니다.'; return; }
+    var ok = a === c;
+    m.className = 'hint ' + (ok ? 'good' : 'bad');
+    m.textContent = ok ? '두 칸이 같습니다.' : '아직 다릅니다.';
+  }
+  $('#suPw').oninput = pwEcho;
+  $('#suPw2').oninput = pwEcho;
 
   /* ---------- 로그인 ---------- */
   $('#formLogin').onsubmit = function (e) {
