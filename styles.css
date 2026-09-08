@@ -945,7 +945,9 @@ td.plancol{background:var(--band-plan);color:var(--muted);font-weight:400}
 .fld .hint.good{color:var(--ok);font-weight:700}
 .fld .hint.bad{color:var(--red-d);font-weight:700}
 
-/* 로그인 화면 로고 — 흰 바탕이라 원본을 그대로 쓴다 (레일의 반전본이 아니다) */
+/* 로그인 화면 로고 — 흰 바탕이라 원본을 그대로 쓴다 (레일의 반전본이 아니다).
+   로고와 화면 이름 사이를 벌린다 — 붙어 있으면 로고가 제목의 윗줄처럼 읽힌다. */
 .auth .brand .logo{
-  display:block;width:min(232px, 62%);height:auto;margin:0 auto 16px
+  display:block;width:min(320px, 86%);height:auto;margin:0 auto 30px
 }
+.auth .brand h1{margin-top:0}
